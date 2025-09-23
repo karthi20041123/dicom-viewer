@@ -1,0 +1,385 @@
+@import url('https://fonts.googleapis.com/css2?family=Andika&display=swap');
+@import url('https://fonts.cdnfonts.com/css/multicolore');
+@import url('https://fonts.googleapis.com/css2?family=Folks&display=swap');
+
+/* Base styles to match the theme */
+body {
+  font-family: 'Andika', sans-serif; /* Primary font for the body */
+  margin: 0;
+  padding: 0;
+  background-color: #f8f9fa; /* Light grayish white to match image background */
+  color: #333;
+}
+
+/* Use Multicolore for all headings */
+h1, h2, h3, h4 {
+  font-family: 'Multicolore', sans-serif;
+  margin: 0;
+}
+
+/* Use Folks for all buttons */
+button {
+  font-family: 'Folks', sans-serif;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+/* Custom classes for the component */
+.pacs-container {
+  max-width: 1400px; /* Increased container size */
+  margin: 0 auto;
+  padding: 15px;
+  width: 90%; /* Responsive width */
+}
+
+.bg-blue-600 {
+  background-color: #1a237e; /* Match dark blue from image header */
+  text-align: center; /* Center the header */
+}
+
+.bg-blue-600 h1 {
+  color: white; /* White color for the main header */
+  font-size: 2.5rem; /* Increased font size for prominence */
+  padding: 10px 0; /* Adjusted padding to move header slightly down */
+}
+
+.logout-container {
+  position: absolute;
+  top: -50px;
+  left: 1800px;
+}
+
+.logout-popup {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background-color: white;
+  color: #333;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  min-width: 120px;
+  z-index: 1000;
+}
+
+.back-button {
+  display: flex;
+  align-items: center;
+  background-color: #6c757d; /* Gray like Clear Filters in image */
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.back-button:hover {
+  background-color: #5a6268;
+}
+
+.back-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.study-details-section {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-bottom: 30px;
+  animation: fade-in 0.5s ease;
+}
+
+.search-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  color: #1a237e; /* Dark blue from header */
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.study-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.info-section {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 6px;
+  border: 1px solid #dee2e6;
+}
+
+.info-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  margin-bottom: 10px;
+  color: #343a40;
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.info-label {
+  font-weight: bold;
+  color: #495057;
+}
+
+.info-value {
+  color: #212529;
+}
+
+.results-section {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  animation: scale-in 0.5s ease;
+}
+
+.results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 15px;
+  font-size: 18px;
+  color: #1a237e;
+}
+
+.results-count {
+  background-color: #e9ecef;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 14px;
+  margin-left: 10px;
+}
+
+.series-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.series-card {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 10px;
+  padding: 10px 5px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 90%;
+  width: 320px; /* Fixed width for uniformity */
+}
+
+.series-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.series-card.selected {
+  border-color: #212529; /* Blue highlight for selected */
+  background-color: #e7f1ff;
+}
+
+.series-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.series-number {
+  font-size: 16px;
+  font-weight: bold;
+  color: #212529;
+}
+
+.series-modality {
+  background-color: #1a237e; /* Blue like Search button */
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.series-description {
+  font-size: 14px;
+  color: #495057;
+  margin-bottom: 8px;
+}
+
+.series-meta {
+  font-size: 12px;
+  color: #6c757d;
+  margin-bottom: 12px;
+}
+
+.series-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: auto; /* Push actions to the bottom */
+}
+
+.series-view-btn {
+  background-color: #1a237e;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.series-view-btn:hover {
+  background-color: #212529;
+}
+
+.series-download-btn {
+  background-color: #28a745; /* Green for download to differentiate */
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.series-download-btn:hover {
+  background-color: #218838;
+}
+
+.selected-series-info {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #dee2e6;
+  animation: fade-in 0.5s ease;
+}
+
+.selected-series-info h4 {
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+
+.selected-series-info p {
+  font-size: 14px;
+  color: #495057;
+}
+
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.loading-spinner {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.spinner {
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 10px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* Override Tailwind if needed for consistency */
+.hover\:bg-blue-700:hover {
+  background-color: #0d1435;
+}
+
+/* Ensure buttons match image style */
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Media queries for responsiveness */
+@media (max-width: 1024px) {
+  .pacs-container {
+    width: 95%;
+  }
+  .study-info-grid {
+    grid-template-columns: 1fr;
+  }
+  .series-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+  .bg-blue-600 h1 {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .pacs-container {
+    width: 100%;
+    padding: 15px;
+  }
+  .series-card {
+    max-width: 100%;
+  }
+  .bg-blue-600 h1 {
+    font-size: 1.5rem;
+  }
+  .study-details-section {
+    padding: 15px;
+  }
+  .series-actions {
+    flex-direction: column;
+    gap: 5px;
+  }
+  .series-view-btn, .series-download-btn {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+}

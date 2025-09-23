@@ -1,0 +1,435 @@
+/* Define custom fonts */
+@import url('https://fonts.googleapis.com/css2?family=Andika&display=swap');
+
+@font-face {
+  font-family: 'Quicksand';
+  src: url('/fonts/Quicksand/Quicksand_Book.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Geometos';
+  src: url('/fonts/Geometos.ttf') format('truetype');
+  font-weight: bolder;
+  font-style: normal;
+}
+
+/* Container (overlay) */
+.signup-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+  transition: opacity 0.3s ease;
+}
+
+/* Wider Card */
+.form-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 24px 32px;
+  width: 100%;
+  max-width: 650px;
+  box-shadow: 0 6px 20px rgba(0, 0, 50, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-family: 'Andika';
+  color: #1a1a1a;
+  position: relative;
+  z-index: 1000;
+  box-sizing: border-box;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+/* Close button (red X) */
+.close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: red;
+  font-size: 1.4rem;
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  padding: 0;
+  transition: opacity 0.3s ease;
+}
+.close-btn:hover {
+  color: #800000;
+  background: none;
+  border: none;
+}
+
+/* signup-header */
+.signup-header {
+  font-size: 1.2rem;
+  font-weight: 700;
+  font-family: 'Geometos', sans-serif;
+  color: #333;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding-top: 10px; /* optional for some spacing from the top */
+}
+
+.signup-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #0a2a66;
+  margin: 0 auto;
+  transition: color 0.3s ease;
+}
+
+/* Remove any .title:hover selector if you're using .signup-title */
+.signup-title:hover {
+  color: #1540a0;
+}
+
+/* Form Fields */
+.form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Two-column layout */
+.field-row {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.password-toggle-row {
+  justify-content: flex-end;
+  padding-right: 15px;
+}
+
+.field {
+  flex: 1;
+  min-width: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #333;
+  transition: color 0.3s ease;
+}
+.label:hover {
+  color: #0a2a66;
+}
+
+/* Input box (text/password) - OUTER BORDER ONLY */
+.input-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1.5px solid #000;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #ffffff;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  height: 45px;
+  box-sizing: border-box;
+}
+
+.input-with-icon:focus-within {
+  border-color: #0a2a66;
+  box-shadow: 0 0 0 2px rgba(10, 42, 102, 0.2);
+  transform: scale(1.02);
+}
+
+/* CRITICAL: Remove ALL inner input styling */
+.input {
+  flex: 1;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  font-size: 1rem;
+  color: #1a1a1a;
+  height: 100%;
+  line-height: 1.4;
+  transition: color 0.3s ease;
+  box-shadow: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+}
+
+/* Override any browser default input styling */
+.input:focus {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+/* Toggle icon for password visibility */
+.toggle-icon {
+  cursor: pointer;
+  color: #444;
+  transition: color 0.3s ease, transform 0.3s ease;
+}
+.toggle-icon:hover {
+  color: #0a2a66;
+  transform: scale(1.1);
+}
+
+/* Eye / icons */
+.icon-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #444;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.3s ease, transform 0.3s ease;
+}
+.icon-button:hover {
+  color: #0a2a66;
+  transform: scale(1.1);
+}
+.password-toggle {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+.password-toggle:hover {
+  transform: scale(1.1);
+  opacity: 0.8;
+}
+.input-with-icon .icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #000d80;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.3s ease;
+}
+
+/* Select dropdowns (Gender, Role, etc.) - REMOVE INNER BORDERS */
+.input-with-icon select,
+.field select {
+  flex: 1;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  font-size: 1rem;
+  color: #1a1a1a;
+  height: 100%;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  padding-right: 28px;
+  cursor: pointer;
+  transition: color 0.3s ease;
+  box-shadow: none !important;
+}
+
+/* Override select focus styling */
+.input-with-icon select:focus,
+.field select:focus {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+/* Single border wrapper for selects */
+.select-wrapper {
+  position: relative;
+  border: 1.5px solid #000;
+  border-radius: 10px;
+  background: #ffffff;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+.select-wrapper:focus-within {
+  border-color: #0a2a66;
+  box-shadow: 0 0 0 2px rgba(10, 42, 102, 0.2);
+  transform: scale(1.02);
+}
+
+/* Custom arrow */
+.select-wrapper::after {
+  content: "▼";
+  position: absolute;
+  right: 12px;
+  font-size: 0.8rem;
+  color: #444;
+  pointer-events: none;
+  transition: color 0.3s ease;
+}
+.select-wrapper:hover::after {
+  color: #0a2a66;
+}
+
+/* Messages */
+.message {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+
+.message-error {
+  background: #ffe8e5;
+  color: #b00020;
+}
+
+.message-success {
+  background: #e6f5ec;
+  color: #137333;
+}
+
+/* Error */
+.error-text {
+  font-size: 0.8rem;
+  color: #d93025;
+  margin-top: -4px;
+  transition: opacity 0.3s ease;
+}
+
+/* Submit Button */
+.submit-button {
+  background: #0a2a66;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 14px;
+  width: 100%;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.3s ease, transform 0.3s ease;
+}
+.submit-button:hover {
+  background: #1540a0;
+  transform: scale(1.02);
+}
+.submit-button:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+}
+
+/* Footer */
+.login-link {
+  text-align: center;
+  font-size: 0.9rem;
+  color: #555;
+  transition: color 0.3s ease;
+  font-family: "Quicksand";
+}
+.login-link:hover {
+  color: #0a2a66;
+}
+.login-button {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #0a2a66;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.3s ease, text-decoration 0.3s ease;
+  font-family: "Quicksand";
+}
+.login-button:hover {
+  text-decoration: underline;
+  color: #1540a0;
+}
+
+/* Checkbox Container */
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: opacity 0.3s ease;
+}
+.checkbox-container:hover {
+  opacity: 0.8;
+}
+
+.checkbox {
+  width: 16px;
+  height: 16px;
+  transition: border-color 0.3s ease, background 0.3s ease;
+}
+
+.checkbox-label {
+  font-size: 0.9rem;
+  color: #333;
+  transition: color 0.3s ease;
+}
+.checkbox-label:hover {
+  color: #0a2a66;
+}
+
+/* CRITICAL: Enhanced autofill styling to completely remove browser styling */
+input:-webkit-autofill,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+  -webkit-text-fill-color: #1a1a1a !important;
+  transition: background-color 5000s ease-in-out 0s !important;
+  background-color: transparent !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+}
+
+/* Remove browser default autofill styling completely */
+input:-webkit-autofill::first-line {
+  color: #1a1a1a !important;
+  font-family: "Segoe UI", Roboto, sans-serif !important;
+}
+
+/* ENHANCED: Aggressive removal of ALL browser input styling */
+input, select, textarea {
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  border-radius: 0 !important;
+  border: none !important;
+  outline: none !important;
+}
+
+/* Override any remaining browser styling */
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="tel"],
+input[type="date"] {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+}
+
+/* Remove any browser-generated tooltips or overlays */
+input::-webkit-input-placeholder { color: #999; font-family: "Quicksand"; }
+input::-moz-placeholder { color: #999; opacity: 1; font-family: "Quicksand"; }
+input:-ms-input-placeholder { color: #999; font-family: "Quicksand"; }
+input::placeholder { color: #999; font-family: "Quicksand"; }

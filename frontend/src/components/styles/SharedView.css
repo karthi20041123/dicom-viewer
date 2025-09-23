@@ -1,0 +1,32 @@
+.shared-view-dialog {
+.MuiDialog-paper {
+background-color: #ffffff;
+padding: 16px;
+border-radius: 8px;
+box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+.MuiDialogTitle-root {
+background-color: #ffffff;
+font-weight: bold;
+font-size: 1.25rem;
+padding: 16px;
+}
+.MuiDialogContent-root {
+background-color: #ffffff;
+display: flex;
+flex-direction: column;
+gap: 16px;
+padding: 20px;
+}
+.MuiDialogActions-root {
+background-color: #ffffff;
+padding: 16px;
+}
+.MuiTextField-root {
+background-color: #ffffff;
+margin-top: 8px;
+}
+.MuiFormControlLabel-root {
+background-color: #ffffff;
+}
+}

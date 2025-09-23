@@ -1,0 +1,276 @@
+/* ===============================
+   Main Container
+================================ */
+.mpr-main-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90vw;
+  height: 85vh;
+  z-index: 1000;
+  background: #fdfdfd;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===============================
+   Header
+================================ */
+.mpr-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 24px;
+  background: linear-gradient(135deg, #1976d2, #1565c0);
+  color: #ffffff;
+  border-bottom: 2px solid #0d47a1;
+}
+
+.mpr-main-title {
+  font-weight: 600;
+  font-size: 1.1rem;
+  letter-spacing: 0.5px;
+}
+
+.mpr-close-button {
+  color: #ffffff;
+  border: 1px solid #ffffff;
+  background-color: #d32f2f; /* Distinct red background for close action */
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-weight: 500;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.mpr-close-button:hover {
+  background-color: #b71c1c; /* Darker red on hover */
+  color: #ffffff;
+  border-color: #b71c1c;
+}
+
+/* ===============================
+   Mode Selector (toolbar under header)
+================================ */
+.mpr-mode-selector {
+  display: flex;
+  gap: 10px;
+  padding: 12px 24px;
+  background: #ffffff;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.mpr-mode-selector button {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #1976d2;
+  border: 1px solid #1976d2;
+  border-radius: 6px;
+  padding: 6px 12px;
+  background-color: #e3f2fd; /* Light blue background for inactive buttons */
+  transition: all 0.2s ease;
+}
+
+.mpr-mode-selector button:hover {
+  background: #bbdefb; /* Lighter blue on hover */
+  color: #0d47a1;
+}
+
+.mpr-mode-selector button.active {
+  background: linear-gradient(135deg, #1976d2, #1565c0); /* Match header gradient for active state */
+  color: #ffffff;
+  border-color: #0d47a1;
+}
+
+.mpr-mode-selector button.active:hover {
+  background: linear-gradient(135deg, #1565c0, #0d47a1); /* Darker gradient on hover */
+  color: #ffffff;
+}
+
+/* ===============================
+   Content Area
+================================ */
+.mpr-content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  background: #fafafa;
+}
+
+.mpr-title {
+  margin-bottom: 16px;
+  font-weight: 600;
+  color: #212121;
+  font-size: 1rem;
+}
+
+/* ===============================
+   Orthogonal View
+================================ */
+.mpr-orthogonal-container {
+  width: 100%;
+  height: 100%;
+}
+
+.mpr-viewers-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 18px;
+  height: calc(100% - 50px);
+  min-height: 500px;
+}
+
+.mpr-viewer-container {
+  background: #ffffff;
+  padding: 14px;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+}
+
+.mpr-viewer-title {
+  text-align: center;
+  margin-bottom: 10px;
+  color: #1565c0;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+/* Viewer Window */
+.mpr-viewer {
+  flex: 1;
+  background: #000000;
+  border: 2px solid #444;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  min-height: 220px;
+  transition: all 0.3s ease;
+}
+.mpr-viewer:hover {
+  border-color: #1976d2;
+  box-shadow: 0 0 10px rgba(25, 118, 210, 0.4);
+}
+
+/* Specific viewers */
+.axial-viewer,
+.coronal-viewer,
+.sagittal-viewer {
+  width: 100%;
+  min-height: 220px;
+}
+
+/* ===============================
+   Sliders
+================================ */
+.mpr-slice-slider {
+  margin: 10px 0;
+}
+
+/* ===============================
+   Oblique / Mist / Dental
+================================ */
+.mpr-oblique-container,
+.mpr-mist-container,
+.mpr-dental-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.oblique-viewer,
+.mist-viewer,
+.dental-viewer {
+  min-height: 220px;
+  width: 100%;
+  border-radius: 6px;
+  background: #000000;
+}
+
+/* ===============================
+   Info Panel
+================================ */
+.mpr-info {
+  padding: 12px 24px;
+  background: #e3f2fd;
+  border-top: 1px solid #bbdefb;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #212121;
+  font-weight: 500;
+}
+
+/* ===============================
+   Disabled Container
+================================ */
+.mpr-disabled-container {
+  padding: 40px;
+  text-align: center;
+  background: #f5f5f5;
+  border-radius: 10px;
+  margin: 20px;
+  font-size: 0.95rem;
+  color: #616161;
+}
+
+/* ===============================
+   Crosshair (Overlay)
+================================ */
+.mpr-crosshair {
+  position: absolute;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.mpr-crosshair-line {
+  background: #ff3b3b;
+  opacity: 0.8;
+}
+
+.mpr-crosshair-horizontal {
+  height: 1px;
+  width: 100%;
+  top: 50%;
+  left: 0;
+}
+
+.mpr-crosshair-vertical {
+  width: 1px;
+  height: 100%;
+  left: 50%;
+  top: 0;
+}
+
+/* ===============================
+   Responsive
+================================ */
+@media (max-width: 1200px) {
+  .mpr-main-container {
+    width: 95vw;
+    height: 90vh;
+  }
+  .mpr-viewers-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .mpr-header {
+    padding: 12px 16px;
+  }
+  .mpr-mode-selector {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 16px;
+  }
+  .mpr-content {
+    padding: 14px;
+  }
+  .mpr-viewer {
+    min-height: 160px;
+  }
+}

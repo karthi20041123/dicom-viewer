@@ -1,0 +1,430 @@
+body {
+    background-color: #ffffff;
+    color: #333333;
+    transition: background-color 0.3s, color 0.3s;
+    margin: 0;
+    font-family: Arial, sans-serif;
+    font-size: 18px; /* Increased base font size */
+}
+
+body.dark-mode {
+    background-color: #1a1a1a;
+    color: #ffffff;
+}
+
+.pacs-header {
+    background-color: #080072;
+    color: white;
+    padding: 25px 30px; /* Increased padding */
+    display: flex;
+    /* justify-content: space-between; Adjusted to space out left and right content */
+    align-items: center;
+    position: relative; /* Allow absolute positioning of icons */
+}
+
+.pacs-title {
+    font-size: 32px; /* Increased title font size */
+    font-weight: bold;
+    margin: 10px 600px; /* Center the title by using auto margins */
+}
+
+.header-icons {
+    position: absolute;
+    right: 30px; /* Increased right offset for larger layout */
+    display: flex;
+    align-items: center;
+    gap: 15px; /* Increased gap between icons */
+}
+
+/* Icon styling for theme toggle, login, and user initial hyperlinks */
+.theme-toggle-btn,
+.login-btn,
+.user-initial-btn {
+    border: none;
+    cursor: pointer;
+    color: white;
+    padding: 8px; /* Increased padding for larger clickable area */
+    text-decoration: none; /* Remove underline */
+    display: inline-flex;
+    align-items: center;
+    font-size: 24px; /* Adjusted to match icon size */
+}
+
+/* Hover effect with color change only */
+.theme-toggle-btn:hover,
+.login-btn:hover,
+.user-initial-btn:hover {
+    color: #cccccc;
+    transition: color 0.3s ease;
+}
+
+/* Styling for Sample DICOM Viewer button */
+.sample-dicom-btn {
+    border: none;
+    cursor: pointer;
+    color: white;
+    padding: 8px;
+    background: none; /* Ensure no background for consistency */
+    display: inline-flex;
+    align-items: center;
+    font-size: 16px; /* Match text with other elements */
+}
+
+.sample-dicom-btn:hover {
+    background-color: #080072;
+    color: #cccccc;
+    transition: color 0.3s ease;
+}
+
+.user-menu {
+    position: relative;
+}
+
+.menu-popup {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background-color: white;
+    color: #003366;
+    border-radius: 6px; /* Slightly larger border radius */
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1); /* Increased shadow */
+    min-width: 250px; /* Increased width */
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    padding: 15px; /* Increased padding */
+}
+
+.menu-popup.dark-mode {
+    background-color: #2d2d2d;
+    color: #ffffff;
+}
+
+.menu-item {
+    padding: 12px; /* Increased padding */
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    color: #003366;
+    font-size: 16px; /* Increased font size */
+}
+
+.menu-item:hover {
+    background-color: #f0f0f0;
+    color: #003366;
+}
+
+.menu-item.dark-mode {
+    color: #ffffff;
+}
+
+.menu-item.dark-mode:hover {
+    background-color: #3d3d3d;
+}
+
+.upload-dicom-container {
+    display: flex;
+    justify-content: center; /* Center the upload button */
+    padding: 15px 30px; /* Increased padding, distinct from header */
+}
+
+.upload-dicom-btn {
+    background-color: #080072;
+    color: white;
+    border: none;
+    padding: 12px 24px; /* Increased padding for larger button */
+    border-radius: 6px; /* Slightly larger border radius */
+    cursor: pointer;
+    font-size: 16px; /* Increased font size */
+    display: flex;
+    align-items: center;
+}
+
+.upload-dicom-btn:hover {
+    background-color: #050046;
+}
+
+.pacs-search-container {
+    max-width: 1400px; /* Increased max-width */
+    margin: 30px auto; /* Increased margin */
+    padding: 30px; /* Increased padding */
+    background-color: white;
+    border-radius: 10px; /* Increased border radius */
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1); /* Increased shadow */
+    transition: background-color 0.3s, box-shadow 0.3s;
+}
+
+.pacs-search-container.dark-mode {
+    background-color: #2d2d2d;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+
+.pacs-search-container.dark-mode:hover {
+    background-color: #3d3d3d;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4); /* Increased shadow on hover */
+}
+
+/* Icon styling for search icon in search box */
+.search-box {
+    display: flex;
+    align-items: center;
+    margin-bottom: 30px; /* Increased margin */
+}
+
+/* Search icon specific styles */
+.search-icon {
+    margin-right: 15px; /* Increased margin */
+    color: #080072;
+}
+
+/* Search icon dark mode styles */
+.search-icon.dark-mode {
+    color: #ffffff;
+}
+
+.search-title {
+    font-size: 24px; /* Increased font size */
+    font-weight: bold;
+    color: #080072;
+    margin: 0;
+    transition: color 0.3s;
+}
+
+.search-title.dark-mode {
+    color: #ffffff;
+}
+
+.search-title.dark-mode:hover {
+    color: #cccccc;
+}
+
+.search-form-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 20px; /* Increased gap */
+    margin-bottom: 30px; /* Increased margin */
+}
+
+.search-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.field-label {
+    font-size: 16px; /* Increased font size */
+    color: #333;
+    margin-bottom: 8px; /* Increased margin */
+    transition: color 0.3s;
+}
+
+.field-label.dark-mode {
+    color: #ffffff;
+}
+
+.text-input {
+    padding: 12px; /* Increased padding */
+    border: 1px solid #ccc;
+    border-radius: 6px; /* Increased border radius */
+    font-size: 16px; /* Increased font size */
+    background-color: #ffffff;
+    color: #333;
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s, box-shadow 0.3s;
+}
+
+.text-input.dark-mode {
+    background-color: #3d3d3d;
+    border-color: #555;
+    color: #ffffff;
+}
+
+.text-input:focus {
+    outline: none;
+    border-color: #080072;
+    box-shadow: 0 0 8px rgba(0, 86, 179, 0.5); /* Increased shadow */
+}
+
+.text-input.dark-mode:focus {
+    border-color: #66b3ff;
+    box-shadow: 0 0 8px rgba(102, 179, 255, 0.5);
+}
+
+.search-buttons {
+    display: flex;
+    gap: 15px; /* Increased gap */
+}
+
+.search-btn,
+.clear-btn {
+    padding: 12px 24px; /* Increased padding */
+    border: none;
+    border-radius: 6px; /* Increased border radius */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    font-size: 16px; /* Increased font size */
+}
+
+/* Icon styling within search and clear buttons */
+.search-btn {
+    background-color: #080072;
+    color: white;
+}
+
+.search-btn:hover {
+    background-color: #050046;
+}
+
+.clear-btn {
+    background-color: #6c757d;
+    color: white;
+}
+
+.clear-btn:hover {
+    background-color: #5a6268;
+}
+
+.pacs-results-container {
+    max-width: 1400px; /* Increased max-width */
+    margin: 30px auto; /* Increased margin */
+    padding: 30px; /* Increased padding */
+    background-color: white;
+    border-radius: 10px; /* Increased border radius */
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1); /* Increased shadow */
+    transition: background-color 0.3s, box-shadow 0.3s;
+}
+
+.pacs-results-container.dark-mode {
+    background-color: #2d2d2d;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+
+.pacs-results-container.dark-mode:hover {
+    background-color: #3d3d3d;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4); /* Increased shadow */
+}
+
+.results-header {
+    margin-bottom: 30px; /* Increased margin */
+}
+
+.results-title {
+    font-size: 22px; /* Increased font size */
+    font-weight: bold;
+    color: #003366;
+    margin: 0;
+    transition: color 0.3s;
+}
+
+.results-title.dark-mode {
+    color: #ffffff;
+}
+
+.results-title.dark-mode:hover {
+    color: #cccccc;
+}
+
+.results-count {
+    margin-left: 15px; /* Increased margin */
+    color: #666;
+    font-size: 16px; /* Increased font size */
+}
+
+.results-count.dark-mode {
+    color: #bbbbbb;
+}
+
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table-header {
+    background-color: #080072;
+    color: white;
+    padding: 12px; /* Increased padding */
+    text-align: left;
+    font-size: 16px; /* Increased font size */
+}
+
+.table-row {
+    border-bottom: 1px solid #ddd;
+}
+
+.table-row.dark-mode {
+    border-bottom: 1px solid #444;
+}
+
+.table-cell {
+    padding: 12px; /* Increased padding */
+    vertical-align: middle;
+    font-size: 16px; /* Increased font size */
+}
+
+.patient-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.patient-name {
+    font-weight: bold;
+    font-size: 16px; /* Increased font size */
+}
+
+.patient-name.dark-mode {
+    color: #ffffff;
+}
+
+.patient-id {
+    color: #666;
+    font-size: 14px; /* Increased font size */
+}
+
+.patient-id.dark-mode {
+    color: #bbbbbb;
+}
+
+.modality-badge {
+    display: inline-block;
+    padding: 4px 10px; /* Increased padding */
+    background-color: #e9ecef;
+    border-radius: 6px; /* Increased border radius */
+    font-size: 14px; /* Increased font size */
+}
+
+.modality-badge.dark-mode {
+    background-color: #444;
+    color: #ffffff;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 8px; /* Increased gap */
+}
+
+/* Icon styling for view and export hyperlinks */
+.action-btn {
+    border: none;
+    cursor: pointer;
+    text-decoration: none; /* Remove underline */
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 12px; /* Increased padding */
+    font-size: 14px; /* Increased font size */
+}
+
+.view-btn {
+    color: #080072;
+}
+
+.view-btn:hover {
+    color: #050046;
+}
+
+.export-btn {
+    color: #080072;
+}
+
+.export-btn:hover {
+    color: #050046;
+}

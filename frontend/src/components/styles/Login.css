@@ -1,0 +1,308 @@
+@import url('https://fonts.googleapis.com/css2?family=Andika&display=swap');
+
+/* Reset modal wrappers (remove extra white bg) */
+.MuiDialog-paper,
+.MuiPaper-root,
+.modal-backdrop,
+.MuiModal-root {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Define custom fonts */
+@font-face {
+  font-family: 'Quicksand';
+  src: url('/fonts/Quicksand/Quicksand_Book.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Geometos';
+  src: url('/fonts/Geometos.ttf') format('truetype');
+  font-weight: bolder;
+  font-style: normal;
+}
+
+/* Optional: dim overlay background */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+}
+
+/* Container (actual login card) */
+.login-modal {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 22px 28px; /* reduced from 28px 32px */
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 6px 20px rgba(0, 0, 50, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 14px; /* reduced from 18px */
+  font-family: "Andika", "Segoe UI", Roboto, sans-serif; /* Applied Quicksand for body */
+  color: #1a1a1a;
+  position: relative;
+  z-index: 1000;
+  font-weight: 600; /* Adjusted to a valid bold value */
+}
+
+/* Header */
+.login-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.login-header h2 {
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: #0a2a66; /* navy blue */
+  font-family: "Geometos", sans-serif; /* Applied Geometos for header */
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: red;
+  font-size: 1.4rem;
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  padding: 0;
+  transition: color 0.2s;
+}
+.close-btn:hover {
+  color: #800000; /* Darker red/maroon */
+  background: none; /* Ensure no rectangle on hover */
+  border: none; /* Ensure no border on hover */
+}
+
+/* Subtitle */
+.subtext {
+  font-size: 1.2rem;
+  font-weight: 700; /* Adjusted from 2000 to 700 for valid bold */
+  color: #333;
+  margin-top: -4px;
+  text-align: center;
+}
+
+/* Fields */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px; /* Added to create space between Email and Password fields */
+}
+
+.field label {
+  font-size: 1rem;
+  font-weight: 700; /* Adjusted from 2000 to 700 for valid bold */
+  color: #333;
+}
+
+.input-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1.5px solid #000; /* Black border */
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #ffffff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  height: 25px;
+}
+
+.input-with-icon:focus-within {
+  border-color: #0a2a66;
+  box-shadow: 0 0 0 2px rgba(10, 42, 102, 0.2);
+}
+
+.input-with-icon input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.95rem;
+  color: #1a1a1a;
+}
+
+/* Style placeholder font */
+.input-with-icon input::placeholder {
+  font-family: "Quicksand", "Segoe UI", Roboto, sans-serif; /* Apply Quicksand to placeholders */
+  color: #999; /* Match existing placeholder color */
+  opacity: 1;
+}
+
+/* Style for the select dropdown */
+.select-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.remember-select {
+  border: 1.5px solid #000; /* Match input-with-icon border */
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #ffffff;
+  font-size: 0.95rem;
+  color: #1a1a1a;
+  font-family: "Andika", "Segoe UI", Roboto, sans-serif;
+  height: 47px; /* Match input-with-icon height */
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.remember-select:focus {
+  outline: none;
+  border-color: #0a2a66;
+  box-shadow: 0 0 0 2px rgba(10, 42, 102, 0.2);
+}
+
+/* Errors */
+.error-text {
+  font-size: 0.8rem;
+  color: #d93025;
+  margin-top: 2px;
+}
+
+/* Options Row */
+.row-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px; /* Added to create space between Password field and Forgot Password */
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #444;
+  white-space: nowrap;
+}
+
+/* Links (Forgot Password, Sign Up) */
+.link-btn {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #0a2a66;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.2s;
+}
+.link-btn:hover,
+.link-btn:focus {
+  background: none !important; /* remove grey */
+  outline: none !important;
+  text-decoration: underline; /* underline only */
+  color: #0a2a66;
+}
+
+/* Alerts */
+.alert {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin-top: 10px;
+}
+
+.alert-error {
+  background: #ffe8e5;
+  color: #b00020;
+}
+
+.alert-success {
+  background: #e6f5ec;
+  color: #137333;
+}
+
+.alert-info {
+  background: #eaf1fb;
+  color: #0a2a66;
+}
+
+/* Submit Button */
+.primary-btn {
+  background: #0a2a66;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 12px;
+  width: 100%;
+  font-size: 1rem;
+  font-weight: 700; /* Adjusted from 2000 to 700 for valid bold */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.primary-btn:hover {
+  background: #1540a0; /* brighter navy */
+  color: #fff; /* Ensure text color remains unchanged */
+}
+
+.primary-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Footer */
+.footer {
+  text-align: center;
+  font-size: 1rem;
+  color: #555;
+}
+
+.footer .link-btn {
+  font-weight: 700; /* Adjusted from 2000 to 700 for valid bold */
+}
+
+
+.social-login {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 10px; /* Adjust as needed */
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: #a0a0a0;
+  margin: 1px 0;
+}
+
+.divider-line {
+  flex: 1;
+  height: 1px;
+  background: #e0e0e0;
+}
+
+.divider-text {
+  padding: 0 0;
+  font-size: 14px;
+}
+
+input::-webkit-input-placeholder { color: #999; font-family: "Quicksand"; }
+input::-moz-placeholder { color: #999; opacity: 1; font-family: "Quicksand"; }
+input:-ms-input-placeholder { color: #999; font-family: "Quicksand"; }
+input::placeholder { color: #999; font-family: "Quicksand"; }

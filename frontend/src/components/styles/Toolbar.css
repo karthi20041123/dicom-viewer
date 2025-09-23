@@ -1,0 +1,100 @@
+.toolbar-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+  position: relative;
+  background-color: #ffffff; /* White background for container */
+}
+
+.toolbar-button-group {
+  margin-bottom: 5px;
+  gap: 18px;
+  border-radius: 8px;
+  padding: 5px;
+  background-color: #ffffff; /* White background for button group */
+  box-shadow: 0 2px 4px rgba(0, 31, 63, 0.1); /* Subtle navy blue shadow */
+}
+
+.toolbar-button-group .MuiButton-root {
+  width: 126px;
+  border-radius: 8px;
+  background-color: #001f3f; /* Navy blue button background */
+  color: #ffffff; /* White text */
+  font-family: LemonMilk, sans-serif;
+  font-size: 14px;
+  text-transform: none;
+  text-align: center;
+}
+
+.toolbar-button-group .MuiButton-root:hover {
+  background-color: #003366; /* Slightly lighter navy blue for hover */
+}
+
+.magnifier-button {
+  color: #ffffff; /* White text */
+  background-color: #001f3f; /* Navy blue background */
+}
+
+.magnifier-button:hover {
+  background-color: #003366; /* Lighter navy blue for hover */
+}
+
+.segmentation-button {
+  color: #ffffff; /* White text */
+  background-color: #001f3f; /* Navy blue background */
+}
+
+.segmentation-button:hover {
+  background-color: #003366; /* Lighter navy blue for hover */
+}
+
+.reset-button {
+  color: #ffffff; /* White text */
+  background-color: #001f3f; /* Navy blue background */
+}
+
+.reset-button:hover {
+  background-color: #003366; /* Lighter navy blue for hover */
+}
+
+.export-button {
+  color: #ffffff; /* White text */
+  background-color: #001f3f; /* Navy blue background */
+}
+
+.export-button:hover {
+  background-color: #003366; /* Lighter navy blue for hover */
+}
+
+.export-menu .MuiPaper-root {
+  background-color: #ffffff; /* White background for menu */
+  color: #001f3f; /* Navy blue text */
+  box-shadow: 0 2px 4px rgba(0, 31, 63, 0.2); /* Navy blue shadow */
+}
+
+.export-menu .MuiMenuItem-root {
+  color: #001f3f; /* Navy blue text */
+}
+
+.export-menu .MuiMenuItem-root:hover {
+  background-color: #f5f7fa; /* Light gray-blue for hover */
+}
+
+.measurement-container {
+  position: relative;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  background-color: #ffffff; /* White background */
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 31, 63, 0.2); /* Navy blue shadow */
+  z-index: 10;
+  pointer-events: auto;
+  color: #001f3f; /* Navy blue text */
+}
+
+.measurement-container[style*="pointer-events: none"] {
+  pointer-events: none;
+}
