@@ -15,15 +15,14 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import axios from 'axios';
 import PACSInstancesView from './PACSInstancesView';
-import "./PACSStudyDetails.css";
+import './PACSStudyDetails.css';
 
 const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogout }) => {
-  const [study, setStudy] = useState(selectedStudy);
+  const [study, setStudy] = useState(null); // Initialize as null
   const [selectedSeries, setSelectedSeries] = useState(null);
   const [viewingSeries, setViewingSeries] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showLogoutMessage, setShowLogoutMessage] = useState(false);
-  const [showLogoutPopup, setShowLogoutPopup] = useState(false);
 
   const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
@@ -40,6 +39,12 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
 
   useEffect(() => {
     const fetchStudyDetails = async () => {
+      if (!selectedStudy || !selectedStudy.id) {
+        console.warn('No valid study selected for fetching details');
+        setStudy(null); // Ensure study is null if selectedStudy is invalid
+        return;
+      }
+
       setLoading(true);
       try {
         const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
@@ -50,17 +55,19 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
         });
         if (response.data.success) {
           setStudy(response.data.study);
+        } else {
+          console.error('Failed to fetch study details:', response.data.message);
+          setStudy(null); // Set to null on failure
         }
       } catch (err) {
         console.error('Error fetching study details:', err);
+        setStudy(null); // Set to null on error
       } finally {
         setLoading(false);
       }
     };
 
-    if (selectedStudy) {
-      fetchStudyDetails();
-    }
+    fetchStudyDetails();
   }, [selectedStudy]);
 
   const handleSeriesSelect = (series) => {
@@ -194,46 +201,34 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
   };
 
   const handleLogout = () => {
-    // Clear authentication data
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("user");
-    localStorage.removeItem("tokenExpires");
-    sessionStorage.removeItem("authToken");
-    sessionStorage.removeItem("user");
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
+    localStorage.removeItem('tokenExpires');
+    sessionStorage.removeItem('authToken');
+    sessionStorage.removeItem('user');
 
-    // Show logout message
     setShowLogoutMessage(true);
     
-    // Call parent logout callback if provided
     if (onLogout) {
       onLogout();
     }
 
-    // Redirect after showing message
     setTimeout(() => {
       setShowLogoutMessage(false);
-      // Navigate back to search results
       if (onBackToSearch) {
         onBackToSearch();
       }
     }, 1500);
   };
 
-  const toggleLogoutPopup = () => {
-    setShowLogoutPopup(!showLogoutPopup);
-  };
-
   const getUserInitial = () => {
-    const user = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user"));
-    if (!user) return "U";
-    
+    const user = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user') || '{}');
+    if (!user) return 'U';
     const firstName = user?.profile?.firstName;
     if (firstName && firstName.length > 0) return firstName.charAt(0).toUpperCase();
-
     const username = user?.username;
     if (username && username.length > 0) return username.charAt(0).toUpperCase();
-
-    return "U";
+    return 'U';
   };
 
   if (viewingSeries) {
@@ -253,230 +248,189 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="bg-blue-600 text-white p-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold">PACS Server</h1>
-          <div className="logout-container" style={{ position: 'relative' }}>
+    <>
+      <div className="pacssd-header">
+        <div className="pacssd-max-w-7xl pacssd-mx-auto pacssd-flex pacssd-justify-between pacssd-items-center">
+          <h1 className="pacssd-text-2xl pacssd-font-bold">PACS Server</h1>
+          <div className="pacssd-user-controls">
             <button
-              onClick={toggleLogoutPopup}
-              className="flex items-center text-white hover:text-gray-200 bg-blue-700 hover:bg-blue-800 px-3 py-2 rounded-full transition-colors duration-200"
+              className="pacssd-user-initial-btn"
               disabled={loading}
-              style={{ 
-                width: '40px', 
-                height: '40px', 
-                borderRadius: '50%', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                fontSize: '16px',
-                fontWeight: 'bold'
-              }}
             >
               {getUserInitial()}
             </button>
-            {showLogoutPopup && (
-              <div 
-                className="logout-popup"
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: '0',
-                  marginTop: '8px',
-                  backgroundColor: 'white',
-                  color: '#333',
-                  border: '1px solid #ccc',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
-                  padding: '8px',
-                  minWidth: '120px',
-                  zIndex: 1000
-                }}
-              >
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center text-red-600 hover:text-red-800 w-full px-3 py-2 hover:bg-red-50 rounded transition-colors duration-200"
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    fontSize: '14px'
-                  }}
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Logout
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {showLogoutMessage && (
-        <div 
-          className="logout-message"
-          style={{
-            position: 'fixed',
-            top: '20px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            backgroundColor: '#4CAF50',
-            color: 'white',
-            padding: '12px 24px',
-            borderRadius: '8px',
-            boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
-            zIndex: 1000,
-            fontSize: '14px',
-            fontWeight: '500'
-          }}
-        >
-          You have been logged out successfully
-        </div>
-      )}
-
-      <div className="pacs-container">
-        <button 
-          onClick={onBackToSearch} 
-          className="back-button"
-          disabled={loading}
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Search
-        </button>
-
-        <div className="study-details-section fade-in">
-          <div className="search-header">
-            <FileText size={28} />
-            <h2>Study Details</h2>
-          </div>
-
-          <div className="study-info-grid">
-            <div className="info-section">
-              <h3>
-                <User className="w-5 h-5" />
-                Patient Information
-              </h3>
-              <div className="info-item">
-                <span className="info-label">Name:</span>
-                <span className="info-value">{study.patientName}</span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Patient ID:</span>
-                <span className="info-value">{study.patientID}</span>
-              </div>
-            </div>
-
-            <div className="info-section">
-              <h3>
-                <Calendar className="w-5 h-5" />
-                Study Information
-              </h3>
-              <div className="info-item">
-                <span className="info-label">Date:</span>
-                <span className="info-value">
-                  {study.studyDate ? new Date(study.studyDate).toLocaleDateString() : 'Unknown'}
-                </span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Time:</span>
-                <span className="info-value">{study.studyTime}</span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Modality:</span>
-                <span className="info-value">{study.modality}</span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Description:</span>
-                <span className="info-value">{study.studyDescription}</span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Accession:</span>
-                <span className="info-value">{study.accessionNumber}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end mb-4">
             <button
-              onClick={() => handleExportSeries(null)}
+              onClick={handleLogout}
+              className="pacssd-logout-btn"
               disabled={loading}
-              className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center"
             >
-              <Download className="mr-2 w-4 h-4" />
-              Export Entire Study
+              <LogOut className="pacssd-w-4 pacssd-h-4 pacssd-mr-2" />
+              Logout
             </button>
           </div>
         </div>
+      </div>
 
-        <div className="results-section scale-in">
-          <div className="results-header">
-            <h3>
-              Series Collection
-              <span className="results-count">{study.series.length}</span>
-            </h3>
+      <div className="pacssd-min-h-screen pacssd-bg-gray-100">
+        {showLogoutMessage && (
+          <div className="pacssd-logout-message">
+            You have been logged out successfully
           </div>
+        )}
 
-          <div className="series-grid">
-            {study.series.map((series) => (
-              <div 
-                key={series.id} 
-                className={`series-card ${selectedSeries?.id === series.id ? 'selected' : ''}`}
-              >
-                <div className="series-header">
-                  <h4 className="series-number">Series {series.seriesNumber}</h4>
-                  <span className="series-modality">{series.modality}</span>
+        <div className="pacssd-pacs-container">
+          <button 
+            onClick={onBackToSearch} 
+            className="pacssd-back-button"
+            disabled={loading}
+          >
+            <ArrowLeft className="pacssd-w-4 pacssd-h-4" />
+            Back to Search
+          </button>
+
+          <div className="pacssd-study-details-section pacssd-fade-in">
+            <div className="pacssd-search-header">
+              <FileText size={28} />
+              <h2>Study Details</h2>
+            </div>
+
+            {study ? ( // Conditional rendering to prevent null access
+              <div className="pacssd-study-info-grid">
+                <div className="pacssd-info-section">
+                  <h3>
+                    <User className="pacssd-w-5 pacssd-h-5" />
+                    Patient Information
+                  </h3>
+                  <div className="pacssd-info-item">
+                    <span className="pacssd-info-label">Name:</span>
+                    <span className="pacssd-info-value">{study.patientName}</span>
+                  </div>
+                  <div className="pacssd-info-item">
+                    <span className="pacssd-info-label">Patient ID:</span>
+                    <span className="pacssd-info-value">{study.patientID}</span>
+                  </div>
                 </div>
 
-                <div className="series-description">{series.seriesDescription}</div>
-                <div className="series-meta">{series.numberOfInstances} images</div>
-
-                <div className="series-actions">
-                  <button 
-                    onClick={() => handleViewSeries(series)} 
-                    className="series-view-btn"
-                    disabled={loading}
-                  >
-                    <Eye className="w-4 h-4" />
-                    View Series
-                  </button>
-                  <button
-                    onClick={() => handleInstanceView(series)}
-                    className="series-view-btn bg-blue-600 hover:bg-blue-700"
-                    disabled={loading}
-                  >
-                    <Image className="w-4 h-4" />
-                    Instances
-                  </button>
-                  <button
-                    onClick={() => handleExportSeries(series)}
-                    className="series-download-btn"
-                    disabled={loading}
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
+                <div className="pacssd-info-section">
+                  <h3>
+                    <Calendar className="pacssd-w-5 pacssd-h-5" />
+                    Study Information
+                  </h3>
+                  <div className="pacssd-info-item">
+                    <span className="pacssd-info-label">Date:</span>
+                    <span className="pacssd-info-value">
+                      {study.studyDate ? new Date(study.studyDate).toLocaleDateString() : 'Unknown'}
+                    </span>
+                  </div>
+                  <div className="pacssd-info-item">
+                    <span className="pacssd-info-label">Time:</span>
+                    <span className="pacssd-info-value">{study.studyTime || 'Unknown'}</span>
+                  </div>
+                  <div className="pacssd-info-item">
+                    <span className="pacssd-info-label">Modality:</span>
+                    <span className="pacssd-info-value">{study.modality || 'N/A'}</span>
+                  </div>
+                  <div className="pacssd-info-item">
+                    <span className="pacssd-info-label">Description:</span>
+                    <span className="pacssd-info-value">{study.studyDescription || 'N/A'}</span>
+                  </div>
+                  <div className="pacssd-info-item">
+                    <span className="pacssd-info-label">Accession:</span>
+                    <span className="pacssd-info-value">{study.accessionNumber || 'N/A'}</span>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+            ) : (
+              <div className="pacssd-no-study-message">
+                No study details available. Please select a valid study.
+              </div>
+            )}
 
-        {selectedSeries && (
-          <div className="selected-series-info fade-in">
-            <h4>Selected Series: {selectedSeries.seriesDescription}</h4>
-            <p>Series {selectedSeries.seriesNumber} - {selectedSeries.numberOfInstances} images</p>
-          </div>
-        )}
-
-        {loading && (
-          <div className="loading-overlay">
-            <div className="loading-spinner">
-              <div className="spinner"></div>
-              <p>Processing export...</p>
+            <div className="pacssd-flex pacssd-justify-end pacssd-mb-4">
+              <button
+                onClick={() => handleExportSeries(null)}
+                disabled={loading || !study}
+                className="pacssd-export-study-btn"
+              >
+                <Download className="pacssd-mr-2 pacssd-w-4 pacssd-h-4" />
+                Export Entire Study
+              </button>
             </div>
           </div>
-        )}
+
+          {study && ( // Conditional rendering for series grid
+            <div className="pacssd-results-section pacssd-scale-in">
+              <div className="pacssd-results-header">
+                <h3>
+                  Series Collection
+                  <span className="pacssd-results-count">{study.series.length}</span>
+                </h3>
+              </div>
+
+              <div className="pacssd-series-grid">
+                {study.series.map((series) => (
+                  <div 
+                    key={series.id} 
+                    className={`pacssd-series-card ${selectedSeries?.id === series.id ? 'pacssd-selected' : ''}`}
+                  >
+                    <div className="pacssd-series-header">
+                      <h4 className="pacssd-series-number">Series {series.seriesNumber}</h4>
+                      <span className="pacssd-series-modality">{series.modality}</span>
+                    </div>
+
+                    <div className="pacssd-series-description">{series.seriesDescription}</div>
+                    <div className="pacssd-series-meta">{series.numberOfInstances} images</div>
+
+                    <div className="pacssd-series-actions">
+                      <button 
+                        onClick={() => handleViewSeries(series)} 
+                        className="pacssd-series-view-btn"
+                        disabled={loading}
+                      >
+                        <Eye className="pacssd-w-4 pacssd-h-4" />
+                        View Series
+                      </button>
+                      <button
+                        onClick={() => handleInstanceView(series)}
+                        className="pacssd-series-instances-btn"
+                        disabled={loading}
+                      >
+                        <Image className="pacssd-w-4 pacssd-h-4" />
+                        Instances
+                      </button>
+                      <button
+                        onClick={() => handleExportSeries(series)}
+                        className="pacssd-series-download-btn"
+                        disabled={loading}
+                      >
+                        <Download className="pacssd-w-4 pacssd-h-4" />
+                        Download
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {selectedSeries && (
+            <div className="pacssd-selected-series-info pacssd-fade-in">
+              <h4>Selected Series: {selectedSeries.seriesDescription}</h4>
+              <p>Series {selectedSeries.seriesNumber} - {selectedSeries.numberOfInstances} images</p>
+            </div>
+          )}
+
+          {loading && (
+            <div className="pacssd-loading-overlay">
+              <div className="pacssd-loading-spinner">
+                <div className="pacssd-spinner"></div>
+                <p>Processing export...</p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

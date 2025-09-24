@@ -1,430 +1,485 @@
+@import url('https://fonts.googleapis.com/css2?family=Andika&display=swap');
+@import url('https://fonts.cdnfonts.com/css/multicolore');
+@import url('https://fonts.googleapis.com/css2?family=Folks&display=swap');
+
+/* Define CSS variables for themes */
+:root {
+  --bg-color: #f8f9fa;
+  --text-color: #333333;
+  --container-bg: #ffffff;
+  --header-bg: #1a237e;
+  --header-text: #ffffff;
+  --button-bg: #1a237e;
+  --button-hover: #0d1435;
+  --secondary-button-bg: #6c757d;
+  --secondary-button-hover: #5a6268;
+  --progress-bg: #e9ecef;
+  --progress-fill: #28a745;
+  --success-bg: #d4edda;
+  --success-text: #155724;
+  --error-bg: #f8d7da;
+  --error-text: #721c24;
+  --border-color: #dee2e6;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --input-bg: #ffffff;
+  --input-border: #dee2e6;
+  --table-hover-bg: #f1f3f5;
+  --icon-bg: rgba(255, 255, 255, 0.1);
+  --badge-bg: #1a237e;
+}
+
 body {
-    background-color: #ffffff;
-    color: #333333;
-    transition: background-color 0.3s, color 0.3s;
-    margin: 0;
-    font-family: Arial, sans-serif;
-    font-size: 18px; /* Increased base font size */
+  font-family: 'Andika', sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* Dark Mode */
 body.dark-mode {
-    background-color: #1a1a1a;
-    color: #ffffff;
+  --bg-color: #1e1e1e;
+  --text-color: #e0e0e0;
+  --container-bg: #2c2c2c;
+  --header-bg: #0d1435;
+  --header-text: #e0e0e0;
+  --button-bg: #0d1435;
+  --button-hover: #1a237e;
+  --secondary-button-bg: #4a4e57;
+  --secondary-button-hover: #3d4046;
+  --progress-bg: #333333;
+  --progress-fill: #28a745;
+  --success-bg: #1a3e1a;
+  --success-text: #c3e6cb;
+  --error-bg: #421c1c;
+  --error-text: #f5c6cb;
+  --border-color: #444444;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+  --input-bg: #2c2c2c;
+  --input-border: #555555;
+  --table-hover-bg: #3a3a3a;
+  --icon-bg: rgba(255, 255, 255, 0.2);
+  --badge-bg: #0d1435;
 }
 
-.pacs-header {
-    background-color: #080072;
-    color: white;
-    padding: 25px 30px; /* Increased padding */
-    display: flex;
-    /* justify-content: space-between; Adjusted to space out left and right content */
-    align-items: center;
-    position: relative; /* Allow absolute positioning of icons */
+/* Use Multicolore for all headings */
+h1, h2, h3, h4 {
+  font-family: 'Multicolore', sans-serif;
+  margin: 0;
+  color: var(--text-color);
 }
 
-.pacs-title {
-    font-size: 32px; /* Increased title font size */
-    font-weight: bold;
-    margin: 10px 600px; /* Center the title by using auto margins */
+/* Use Folks for all buttons */
+button {
+  font-family: 'Folks', sans-serif;
+  cursor: pointer;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-.header-icons {
-    position: absolute;
-    right: 30px; /* Increased right offset for larger layout */
-    display: flex;
-    align-items: center;
-    gap: 15px; /* Increased gap between icons */
+/* Custom classes for the component */
+.pacsrs-main-container {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 15px;
+  width: 100%;
+  background-color: var(--container-bg);
+  border-radius: 10px;
+  box-shadow: 0 4px 8px var(--shadow-color);
 }
 
-/* Icon styling for theme toggle, login, and user initial hyperlinks */
-.theme-toggle-btn,
-.login-btn,
-.user-initial-btn {
-    border: none;
-    cursor: pointer;
-    color: white;
-    padding: 8px; /* Increased padding for larger clickable area */
-    text-decoration: none; /* Remove underline */
-    display: inline-flex;
-    align-items: center;
-    font-size: 24px; /* Adjusted to match icon size */
+.pacsrs-header {
+  background-color: var(--header-bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 30px;
 }
 
-/* Hover effect with color change only */
-.theme-toggle-btn:hover,
-.login-btn:hover,
-.user-initial-btn:hover {
-    color: #cccccc;
-    transition: color 0.3s ease;
+.pacsrs-title {
+  color: var(--header-text);
+  font-size: 2.5rem;
+  text-align: center;
+  flex-grow: 1;
 }
 
-/* Styling for Sample DICOM Viewer button */
-.sample-dicom-btn {
-    border: none;
-    cursor: pointer;
-    color: white;
-    padding: 8px;
-    background: none; /* Ensure no background for consistency */
-    display: inline-flex;
-    align-items: center;
-    font-size: 16px; /* Match text with other elements */
+.pacsrs-header-buttons {
+  display: flex;
+  gap: 10px;
 }
 
-.sample-dicom-btn:hover {
-    background-color: #080072;
-    color: #cccccc;
-    transition: color 0.3s ease;
+.pacsrs-sample-dicom-btn {
+  background-color: #6c757d;
+  color: var(--header-text);
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
 }
 
-.user-menu {
-    position: relative;
+.pacsrs-sample-dicom-btn:hover {
+  background-color: #5a6268;
 }
 
-.menu-popup {
-    position: absolute;
-    right: 0;
-    top: 100%;
-    background-color: white;
-    color: #003366;
-    border-radius: 6px; /* Slightly larger border radius */
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1); /* Increased shadow */
-    min-width: 250px; /* Increased width */
-    z-index: 10;
-    display: flex;
-    flex-direction: column;
-    padding: 15px; /* Increased padding */
+.pacsrs-add-study-btn {
+  background-color: #1a237e;
+  color: var(--header-text);
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
 }
 
-.menu-popup.dark-mode {
-    background-color: #2d2d2d;
-    color: #ffffff;
+.pacsrs-add-study-btn:hover {
+  background-color: #0d1435;
 }
 
-.menu-item {
-    padding: 12px; /* Increased padding */
-    border: none;
-    background: none;
-    text-align: left;
-    cursor: pointer;
-    color: #003366;
-    font-size: 16px; /* Increased font size */
+.pacsrs-header-icons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.menu-item:hover {
-    background-color: #f0f0f0;
-    color: #003366;
+.pacsrs-theme-toggle-btn, .pacsrs-login-btn, .pacsrs-user-initial-btn {
+  color: var(--header-text);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--icon-bg);
 }
 
-.menu-item.dark-mode {
-    color: #ffffff;
+.pacsrs-user-initial-btn {
+  background-color: var(--progress-fill);
+  font-size: 18px;
+  font-weight: bold;
 }
 
-.menu-item.dark-mode:hover {
-    background-color: #3d3d3d;
+.pacsrs-user-initial-btn:hover {
+  background-color: #218838;
 }
 
-.upload-dicom-container {
-    display: flex;
-    justify-content: center; /* Center the upload button */
-    padding: 15px 30px; /* Increased padding, distinct from header */
+.pacsrs-upload-progress {
+  margin: 20px 0;
+  text-align: center;
+  color: var(--text-color);
 }
 
-.upload-dicom-btn {
-    background-color: #080072;
-    color: white;
-    border: none;
-    padding: 12px 24px; /* Increased padding for larger button */
-    border-radius: 6px; /* Slightly larger border radius */
-    cursor: pointer;
-    font-size: 16px; /* Increased font size */
-    display: flex;
-    align-items: center;
+.pacsrs-progress-bar {
+  background-color: var(--progress-bg);
+  border-radius: 4px;
+  height: 20px;
+  overflow: hidden;
 }
 
-.upload-dicom-btn:hover {
-    background-color: #050046;
+.pacsrs-progress-fill {
+  background-color: var(--progress-fill);
+  height: 100%;
+  transition: width 0.3s ease;
 }
 
-.pacs-search-container {
-    max-width: 1400px; /* Increased max-width */
-    margin: 30px auto; /* Increased margin */
-    padding: 30px; /* Increased padding */
-    background-color: white;
-    border-radius: 10px; /* Increased border radius */
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1); /* Increased shadow */
-    transition: background-color 0.3s, box-shadow 0.3s;
+.pacsrs-message-banner {
+  padding: 10px;
+  margin: 10px 0;
+  border-radius: 4px;
+  text-align: center;
+  background-color: var(--success-bg);
+  color: var(--success-text);
 }
 
-.pacs-search-container.dark-mode {
-    background-color: #2d2d2d;
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+.pacsrs-message-banner.success {
+  background-color: var(--success-bg);
+  color: var(--success-text);
 }
 
-.pacs-search-container.dark-mode:hover {
-    background-color: #3d3d3d;
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4); /* Increased shadow on hover */
+.pacsrs-message-banner.error {
+  background-color: var(--error-bg);
+  color: var(--error-text);
 }
 
-/* Icon styling for search icon in search box */
-.search-box {
-    display: flex;
-    align-items: center;
-    margin-bottom: 30px; /* Increased margin */
+.pacsrs-upload-dicom-container {
+  margin: 20px 0;
+  text-align: center;
 }
 
-/* Search icon specific styles */
-.search-icon {
-    margin-right: 15px; /* Increased margin */
-    color: #080072;
+.pacsrs-upload-dicom-btn {
+  background-color: var(--button-bg);
+  color: var(--header-text);
+  border: none;
+  padding: 10px 20px;
+  border-radius: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
-/* Search icon dark mode styles */
-.search-icon.dark-mode {
-    color: #ffffff;
+.pacsrs-upload-dicom-btn:hover {
+  background-color: var(--button-hover);
 }
 
-.search-title {
-    font-size: 24px; /* Increased font size */
-    font-weight: bold;
-    color: #080072;
-    margin: 0;
-    transition: color 0.3s;
+.pacsrs-upload-dicom-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.search-title.dark-mode {
-    color: #ffffff;
+.pacsrs-search-container {
+  background-color: var(--container-bg);
+  border-radius: 8px;
+  box-shadow: 0 2px 4px var(--shadow-color);
+  padding: 20px;
+  margin-bottom: 30px;
 }
 
-.search-title.dark-mode:hover {
-    color: #cccccc;
+.pacsrs-search-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
 }
 
-.search-form-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 20px; /* Increased gap */
-    margin-bottom: 30px; /* Increased margin */
+.pacsrs-search-icon {
+  color: var(--header-bg);
 }
 
-.search-field {
-    display: flex;
-    flex-direction: column;
+.pacsrs-search-title {
+  color: var(--header-bg);
+  font-size: 20px;
+  font-weight: bold;
 }
 
-.field-label {
-    font-size: 16px; /* Increased font size */
-    color: #333;
-    margin-bottom: 8px; /* Increased margin */
-    transition: color 0.3s;
+.pacsrs-search-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
 }
 
-.field-label.dark-mode {
-    color: #ffffff;
+.pacsrs-search-field {
+  display: flex;
+  flex-direction: column;
 }
 
-.text-input {
-    padding: 12px; /* Increased padding */
-    border: 1px solid #ccc;
-    border-radius: 6px; /* Increased border radius */
-    font-size: 16px; /* Increased font size */
-    background-color: #ffffff;
-    color: #333;
-    transition: background-color 0.3s, color 0.3s, border-color 0.3s, box-shadow 0.3s;
+.pacsrs-field-label {
+  font-size: 14px;
+  color: var(--text-color);
+  margin-bottom: 5px;
 }
 
-.text-input.dark-mode {
-    background-color: #3d3d3d;
-    border-color: #555;
-    color: #ffffff;
+.pacsrs-text-input {
+  padding: 8px;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: var(--input-bg);
+  color: var(--text-color);
 }
 
-.text-input:focus {
-    outline: none;
-    border-color: #080072;
-    box-shadow: 0 0 8px rgba(0, 86, 179, 0.5); /* Increased shadow */
+.pacsrs-search-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
 }
 
-.text-input.dark-mode:focus {
-    border-color: #66b3ff;
-    box-shadow: 0 0 8px rgba(102, 179, 255, 0.5);
+.pacsrs-search-btn, .pacsrs-clear-btn {
+  background-color: var(--button-bg);
+  color: var(--header-text);
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.search-buttons {
-    display: flex;
-    gap: 15px; /* Increased gap */
+.pacsrs-clear-btn {
+  background-color: var(--secondary-button-bg);
 }
 
-.search-btn,
-.clear-btn {
-    padding: 12px 24px; /* Increased padding */
-    border: none;
-    border-radius: 6px; /* Increased border radius */
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    font-size: 16px; /* Increased font size */
+.pacsrs-search-btn:hover {
+  background-color: var(--button-hover);
 }
 
-/* Icon styling within search and clear buttons */
-.search-btn {
-    background-color: #080072;
-    color: white;
+.pacsrs-clear-btn:hover {
+  background-color: var(--secondary-button-hover);
 }
 
-.search-btn:hover {
-    background-color: #050046;
+.pacsrs-search-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.clear-btn {
-    background-color: #6c757d;
-    color: white;
+.pacsrs-results-container {
+  background-color: var(--container-bg);
+  border-radius: 8px;
+  box-shadow: 0 2px 4px var(--shadow-color);
+  padding: 20px;
 }
 
-.clear-btn:hover {
-    background-color: #5a6268;
+.pacsrs-results-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
 }
 
-.pacs-results-container {
-    max-width: 1400px; /* Increased max-width */
-    margin: 30px auto; /* Increased margin */
-    padding: 30px; /* Increased padding */
-    background-color: white;
-    border-radius: 10px; /* Increased border radius */
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1); /* Increased shadow */
-    transition: background-color 0.3s, box-shadow 0.3s;
+.pacsrs-results-title {
+  color: var(--header-bg);
+  font-size: 18px;
 }
 
-.pacs-results-container.dark-mode {
-    background-color: #2d2d2d;
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+.pacsrs-results-count {
+  background-color: var(--progress-bg);
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 14px;
+  margin-left: 10px;
+  color: var(--text-color);
 }
 
-.pacs-results-container.dark-mode:hover {
-    background-color: #3d3d3d;
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4); /* Increased shadow */
+.pacsrs-login-prompt {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-color);
 }
 
-.results-header {
-    margin-bottom: 30px; /* Increased margin */
+.pacsrs-login-prompt-btn {
+  background-color: var(--button-bg);
+  color: var(--header-text);
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 10px auto;
 }
 
-.results-title {
-    font-size: 22px; /* Increased font size */
-    font-weight: bold;
-    color: #003366;
-    margin: 0;
-    transition: color 0.3s;
+.pacsrs-login-prompt-btn:hover {
+  background-color: var(--button-hover);
 }
 
-.results-title.dark-mode {
-    color: #ffffff;
+.pacsrs-results-table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
-.results-title.dark-mode:hover {
-    color: #cccccc;
+.pacsrs-table-header {
+  background-color: var(--header-bg);
+  color: var(--header-text);
+  font-size: 14px;
+  padding: 10px;
+  text-align: left;
 }
 
-.results-count {
-    margin-left: 15px; /* Increased margin */
-    color: #666;
-    font-size: 16px; /* Increased font size */
+.pacsrs-table-row:hover {
+  background-color: var(--table-hover-bg);
 }
 
-.results-count.dark-mode {
-    color: #bbbbbb;
+.pacsrs-table-cell {
+  padding: 10px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 14px;
+  color: var(--text-color);
 }
 
-.results-table {
+.pacsrs-patient-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.pacsrs-patient-name {
+  font-weight: bold;
+  color: var(--text-color);
+}
+
+.pacsrs-patient-id {
+  color: var(--secondary-button-bg);
+  font-size: 12px;
+}
+
+.pacsrs-modality-badge {
+  background-color: var(--badge-bg);
+  color: var(--header-text);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.pacsrs-action-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.pacsrs-action-btn {
+  color: var(--header-text);
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pacsrs-view-btn {
+  background-color: var(--header-bg);
+}
+
+.pacsrs-export-btn {
+  background-color: var(--progress-fill);
+}
+
+.pacsrs-view-btn:hover {
+  background-color: var(--button-hover);
+}
+
+.pacsrs-export-btn:hover {
+  background-color: #218838;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* Media queries for responsiveness */
+@media (max-width: 1024px) {
+  .pacsrs-main-container {
+    width: 95%;
+  }
+  .pacsrs-search-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .pacsrs-title {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .pacsrs-main-container {
     width: 100%;
-    border-collapse: collapse;
-}
-
-.table-header {
-    background-color: #080072;
-    color: white;
-    padding: 12px; /* Increased padding */
-    text-align: left;
-    font-size: 16px; /* Increased font size */
-}
-
-.table-row {
-    border-bottom: 1px solid #ddd;
-}
-
-.table-row.dark-mode {
-    border-bottom: 1px solid #444;
-}
-
-.table-cell {
-    padding: 12px; /* Increased padding */
-    vertical-align: middle;
-    font-size: 16px; /* Increased font size */
-}
-
-.patient-info {
-    display: flex;
+    padding: 10px;
+  }
+  .pacsrs-title {
+    font-size: 1.5rem;
+  }
+  .pacsrs-action-buttons {
     flex-direction: column;
-}
-
-.patient-name {
-    font-weight: bold;
-    font-size: 16px; /* Increased font size */
-}
-
-.patient-name.dark-mode {
-    color: #ffffff;
-}
-
-.patient-id {
-    color: #666;
-    font-size: 14px; /* Increased font size */
-}
-
-.patient-id.dark-mode {
-    color: #bbbbbb;
-}
-
-.modality-badge {
-    display: inline-block;
-    padding: 4px 10px; /* Increased padding */
-    background-color: #e9ecef;
-    border-radius: 6px; /* Increased border radius */
-    font-size: 14px; /* Increased font size */
-}
-
-.modality-badge.dark-mode {
-    background-color: #444;
-    color: #ffffff;
-}
-
-.action-buttons {
-    display: flex;
-    gap: 8px; /* Increased gap */
-}
-
-/* Icon styling for view and export hyperlinks */
-.action-btn {
-    border: none;
-    cursor: pointer;
-    text-decoration: none; /* Remove underline */
-    display: inline-flex;
-    align-items: center;
-    padding: 8px 12px; /* Increased padding */
-    font-size: 14px; /* Increased font size */
-}
-
-.view-btn {
-    color: #080072;
-}
-
-.view-btn:hover {
-    color: #050046;
-}
-
-.export-btn {
-    color: #080072;
-}
-
-.export-btn:hover {
-    color: #050046;
+  }
+  .pacsrs-action-btn {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
 }

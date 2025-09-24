@@ -9,7 +9,9 @@ import {
   Filter,
   Moon,
   Sun,
+  Plus
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import * as dicomParser from 'dicom-parser';
 import * as cornerstone from 'cornerstone-core';
 import * as cornerstoneWADOImageLoader from 'cornerstone-wado-image-loader';
@@ -53,7 +55,6 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
   const isControlled = typeof onLogout === 'function';
   const [localIsLoggedIn, setLocalIsLoggedIn] = useState(false);
   const isWebWorkerInitialized = useRef(false);
-  const [showMenu, setShowMenu] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showSampleViewer, setShowSampleViewer] = useState(false);
@@ -281,10 +282,9 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
       const formData = new FormData();
       files.forEach((file, index) => {
         formData.append('dicomFiles', file);
-        // Simulate progress
         setTimeout(() => {
           setUploadProgress(((index + 1) / files.length) * 100);
-        }, index * 500); // Slower progress for better UX
+        }, index * 500);
       });
 
       const response = await apiRequest('/dicom/upload', {
@@ -484,7 +484,6 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
     sessionStorage.removeItem('user');
 
     setMessage('You have been logged out');
-    setShowMenu(false);
     setAllStudies([]);
     setFilteredStudies([]);
 
@@ -530,10 +529,6 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
     setLoginOpen(true);
   };
 
-  const toggleMenu = () => {
-    setShowMenu(!showMenu);
-  };
-
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
     document.body.classList.toggle('dark-mode', !isDarkMode);
@@ -551,281 +546,270 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
   };
 
   return (
-    <div className="pacs-main-container">
-      <div className="pacs-header">
-        <button onClick={() => setShowSampleViewer(true)} className="sample-dicom-btn">
-          Sample DICOM Viewer
-        </button>
-        <h1 className="pacs-title">PACS SERVER</h1>
-        <div className="header-icons">
-          <a href="#" onClick={toggleTheme} className="theme-toggle-btn" role="button">
+    <>
+      <div className="pacsrs-header">
+        <div className="pacsrs-header-buttons">
+          <button onClick={() => setShowSampleViewer(true)} className="pacsrs-sample-dicom-btn">
+            Sample DICOM Viewer
+          </button>
+          <Link to="/add-study" className="pacsrs-add-study-btn">
+            <Plus size={24} style={{ marginRight: '8px' }} />
+            Add New Study
+          </Link>
+        </div>
+        <h1 className="pacsrs-title">PACS SERVER</h1>
+        <div className="pacsrs-header-icons">
+          <a href="#" onClick={toggleTheme} className="pacsrs-theme-toggle-btn" role="button">
             {isDarkMode ? <Sun size={28} /> : <Moon size={28} />}
           </a>
           {!effectiveIsLoggedIn && (
-            <a href="#" onClick={() => setLoginOpen(true)} className="login-btn" role="button">
+            <a href="#" onClick={() => setLoginOpen(true)} className="pacsrs-login-btn" role="button">
               <User size={28} />
             </a>
           )}
           {effectiveIsLoggedIn && (
-            <div className="user-menu">
-              <a href="#" onClick={toggleMenu} className="user-initial-btn" role="button">
+            <div className="pacsrs-user-menu">
+              <a href="#" onClick={handleLogout} className="pacsrs-user-initial-btn" role="button">
                 {getUserInitial()}
               </a>
-              {showMenu && (
-                <div className="menu-popup">
-                  <p className="menu-item" style={{ color: '#003366', fontWeight: 'bold' }}>
-                    {userProfile?.profile?.firstName || userProfile?.username || userProfile?.email}
-                  </p>
-                  <hr style={{ margin: '8px 0' }} />
-                  <button className="menu-item">Personal</button>
-                  <button className="menu-item">Free plan</button>
-                  <button className="menu-item">Settings</button>
-                  <button className="menu-item">Language</button>
-                  <button className="menu-item">Get help</button>
-                  <button className="menu-item">Upgrade plan</button>
-                  <button className="menu-item">Learn more</button>
-                  <button onClick={handleLogout} className="menu-item">
-                    <User size={20} style={{ marginRight: '8px' }} />
-                    Logout
-                  </button>
-                </div>
-              )}
             </div>
           )}
         </div>
       </div>
 
-      {isUploading && (
-        <div className="upload-progress">
-          <div className="progress-bar">
-            <div className="progress-fill" style={{ width: `${uploadProgress}%` }}></div>
+      <div className="pacsrs-main-container">
+        {isUploading && (
+          <div className="pacsrs-upload-progress">
+            <div className="pacsrs-progress-bar">
+              <div className="pacsrs-progress-fill" style={{ width: `${uploadProgress}%` }}></div>
+            </div>
+            <p>Uploading files...</p>
           </div>
-          <p>Uploading files...</p>
-        </div>
-      )}
+        )}
 
-      {message && (
-        <div className={`message-banner ${message.includes('Error') || message.includes('failed') ? 'error' : 'success'}`}>
-          {message}
-        </div>
-      )}
+        {message && (
+          <div className={`pacsrs-message-banner ${message.includes('Error') || message.includes('failed') ? 'error' : 'success'}`}>
+            {message}
+          </div>
+        )}
 
-      <div className="upload-dicom-container">
-        <button onClick={handleUploadClick} className="upload-dicom-btn" disabled={isUploading}>
-          <Upload size={24} style={{ marginRight: '8px' }} />
-          {isUploading ? 'Uploading...' : 'Upload DICOM'}
-        </button>
-      </div>
-
-      <div className="pacs-search-container">
-        <div className="search-box">
-          <div className="search-icon"><Search size={28} /></div>
-          <h2 className="search-title">STUDY SEARCH</h2>
+        <div className="pacsrs-upload-dicom-container">
+          <button onClick={handleUploadClick} className="pacsrs-upload-dicom-btn" disabled={isUploading}>
+            <Upload size={24} style={{ marginRight: '8px' }} />
+            {isUploading ? 'Uploading...' : 'Upload DICOM'}
+          </button>
         </div>
 
-        <div className="search-form-grid">
-          <div className="search-field">
-            <label className="field-label">Patient Name</label>
-            <input
-              type="text"
-              placeholder="Eg. John Doe"
-              value={searchFilters.patientName}
-              onChange={(e) => setSearchFilters((prev) => ({ ...prev, patientName: e.target.value }))}
-              className="text-input"
-            />
+        <div className="pacsrs-search-container">
+          <div className="pacsrs-search-box">
+            <div className="pacsrs-search-icon"><Search size={28} /></div>
+            <h2 className="pacsrs-search-title">STUDY SEARCH</h2>
           </div>
 
-          <div className="search-field">
-            <label className="field-label">Patient ID</label>
-            <input
-              type="text"
-              placeholder="Patient ID"
-              value={searchFilters.patientID}
-              onChange={(e) => setSearchFilters((prev) => ({ ...prev, patientID: e.target.value }))}
-              className="text-input"
-            />
+          <div className="pacsrs-search-form-grid">
+            <div className="pacsrs-search-field">
+              <label className="pacsrs-field-label">Patient Name</label>
+              <input
+                type="text"
+                placeholder="Eg. John Doe"
+                value={searchFilters.patientName}
+                onChange={(e) => setSearchFilters((prev) => ({ ...prev, patientName: e.target.value }))}
+                className="pacsrs-text-input"
+              />
+            </div>
+
+            <div className="pacsrs-search-field">
+              <label className="pacsrs-field-label">Patient ID</label>
+              <input
+                type="text"
+                placeholder="Patient ID"
+                value={searchFilters.patientID}
+                onChange={(e) => setSearchFilters((prev) => ({ ...prev, patientID: e.target.value }))}
+                className="pacsrs-text-input"
+              />
+            </div>
+
+            <div className="pacsrs-search-field">
+              <label className="pacsrs-field-label">Study Date</label>
+              <input
+                type="date"
+                placeholder="mm/dd/yyyy"
+                value={searchFilters.studyDate}
+                onChange={(e) => setSearchFilters((prev) => ({ ...prev, studyDate: e.target.value }))}
+                className="pacsrs-text-input"
+              />
+            </div>
+
+            <div className="pacsrs-search-field">
+              <label className="pacsrs-field-label">Modality</label>
+              <select
+                value={searchFilters.modality}
+                onChange={(e) => setSearchFilters((prev) => ({ ...prev, modality: e.target.value }))}
+                className="pacsrs-text-input"
+              >
+                <option value="">Select Modality</option>
+                <option value="CT">CT</option>
+                <option value="MR">MR</option>
+                <option value="XR">X-Ray</option>
+                <option value="US">Ultrasound</option>
+                <option value="NM">Nuclear Medicine</option>
+              </select>
+            </div>
+
+            <div className="pacsrs-search-field">
+              <label className="pacsrs-field-label">Accession Number</label>
+              <input
+                type="text"
+                placeholder="Accession Number"
+                value={searchFilters.accessionNumber}
+                onChange={(e) => setSearchFilters((prev) => ({ ...prev, accessionNumber: e.target.value }))}
+                className="pacsrs-text-input"
+              />
+            </div>
           </div>
 
-          <div className="search-field">
-            <label className="field-label">Study Date</label>
-            <input
-              type="date"
-              placeholder="mm/dd/yyyy"
-              value={searchFilters.studyDate}
-              onChange={(e) => setSearchFilters((prev) => ({ ...prev, studyDate: e.target.value }))}
-              className="text-input"
-            />
-          </div>
-
-          <div className="search-field">
-            <label className="field-label">Modality</label>
-            <select
-              value={searchFilters.modality}
-              onChange={(e) => setSearchFilters((prev) => ({ ...prev, modality: e.target.value }))}
-              className="text-input"
+          <div className="pacsrs-search-buttons">
+            <button
+              onClick={handleSearch}
+              disabled={loading || !effectiveIsLoggedIn}
+              className="pacsrs-search-btn"
             >
-              <option value="">Select Modality</option>
-              <option value="CT">CT</option>
-              <option value="MR">MR</option>
-              <option value="XR">X-Ray</option>
-              <option value="US">Ultrasound</option>
-              <option value="NM">Nuclear Medicine</option>
-            </select>
-          </div>
-
-          <div className="search-field">
-            <label className="field-label">Accession Number</label>
-            <input
-              type="text"
-              placeholder="Accession Number"
-              value={searchFilters.accessionNumber}
-              onChange={(e) => setSearchFilters((prev) => ({ ...prev, accessionNumber: e.target.value }))}
-              className="text-input"
-            />
-          </div>
-        </div>
-
-        <div className="search-buttons">
-          <button
-            onClick={handleSearch}
-            disabled={loading || !effectiveIsLoggedIn}
-            className="search-btn"
-          >
-            {loading ? <RefreshCw size={20} className="mr-2 w-4 h-4 animate-spin" /> : <Search size={20} className="mr-2 w-4 h-4" />}
-            {loading ? 'Searching...' : 'Search'}
-          </button>
-          <button
-            onClick={() => {
-              setSearchFilters({
-                patientName: '',
-                patientID: '',
-                studyDate: '',
-                modality: '',
-                accessionNumber: '',
-              });
-            }}
-            className="clear-btn"
-          >
-            <Filter size={20} className="mr-2 w-4 h-4" />
-            Clear Filters
-          </button>
-        </div>
-      </div>
-
-      <div className="pacs-results-container">
-        <div className="results-header">
-          <h3 className="results-title">SEARCH RESULTS <span className="results-count">{filteredStudies.length}</span></h3>
-        </div>
-
-        {!effectiveIsLoggedIn ? (
-          <div className="login-prompt">
-            <p>Please log in to view and manage DICOM studies.</p>
-            <button onClick={() => setLoginOpen(true)} className="login-prompt-btn">
-              <User size={20} /> Log In
+              {loading ? <RefreshCw size={20} className="mr-2 w-4 h-4 animate-spin" /> : <Search size={20} className="mr-2 w-4 h-4" />}
+              {loading ? 'Searching...' : 'Search'}
+            </button>
+            <button
+              onClick={() => {
+                setSearchFilters({
+                  patientName: '',
+                  patientID: '',
+                  studyDate: '',
+                  modality: '',
+                  accessionNumber: '',
+                });
+              }}
+              className="pacsrs-clear-btn"
+            >
+              <Filter size={20} className="mr-2 w-4 h-4" />
+              Clear Filters
             </button>
           </div>
-        ) : (
-          <table className="results-table">
-            <thead>
-              <tr>
-                <th className="table-header">PATIENT</th>
-                <th className="table-header">STUDY DATE</th>
-                <th className="table-header">MODALITY</th>
-                <th className="table-header">DESCRIPTION</th>
-                <th className="table-header">SERIES</th>
-                <th className="table-header">IMAGES</th>
-                <th className="table-header">ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredStudies.map((study) => (
-                <tr key={study.id} className="table-row">
-                  <td className="table-cell">
-                    <div className="patient-info">
-                      <div className="patient-name">{study.patientName}</div>
-                      <div className="patient-id">{study.patientID}</div>
-                    </div>
-                  </td>
-                  <td className="table-cell">{study.studyDate ? new Date(study.studyDate).toLocaleDateString() : 'Unknown'}</td>
-                  <td className="table-cell">
-                    <span className="modality-badge">{study.modality}</span>
-                  </td>
-                  <td className="table-cell">{study.studyDescription}</td>
-                  <td className="table-cell text-center">{study.numberOfSeries}</td>
-                  <td className="table-cell text-center">{study.numberOfImages}</td>
-                  <td className="table-cell">
-                    <div className="action-buttons">
-                      <a href="#" onClick={() => handleStudySelect(study)} className="action-btn view-btn" role="button">
-                        <Eye size={18} className="w-3 h-3" />
-                        View
-                      </a>
-                      <a href="#" onClick={() => handleExportStudy(study)} className="action-btn export-btn" role="button">
-                        <Download size={18} className="w-3 h-3" />
-                        Export
-                      </a>
-                    </div>
-                  </td>
+        </div>
+
+        <div className="pacsrs-results-container">
+          <div className="pacsrs-results-header">
+            <h3 className="pacsrs-results-title">SEARCH RESULTS <span className="pacsrs-results-count">{filteredStudies.length}</span></h3>
+          </div>
+
+          {!effectiveIsLoggedIn ? (
+            <div className="pacsrs-login-prompt">
+              <p>Please log in to view and manage DICOM studies.</p>
+              <button onClick={() => setLoginOpen(true)} className="pacsrs-login-prompt-btn">
+                <User size={20} /> Log In
+              </button>
+            </div>
+          ) : (
+            <table className="pacsrs-results-table">
+              <thead>
+                <tr>
+                  <th className="pacsrs-table-header">PATIENT</th>
+                  <th className="pacsrs-table-header">STUDY DATE</th>
+                  <th className="pacsrs-table-header">MODALITY</th>
+                  <th className="pacsrs-table-header">DESCRIPTION</th>
+                  <th className="pacsrs-table-header">SERIES</th>
+                  <th className="pacsrs-table-header">IMAGES</th>
+                  <th className="pacsrs-table-header">ACTIONS</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+              </thead>
+              <tbody>
+                {filteredStudies.map((study) => (
+                  <tr key={study.id} className="pacsrs-table-row">
+                    <td className="pacsrs-table-cell">
+                      <div className="pacsrs-patient-info">
+                        <div className="pacsrs-patient-name">{study.patientName}</div>
+                        <div className="pacsrs-patient-id">{study.patientID}</div>
+                      </div>
+                    </td>
+                    <td className="pacsrs-table-cell">{study.studyDate ? new Date(study.studyDate).toLocaleDateString() : 'Unknown'}</td>
+                    <td className="pacsrs-table-cell">
+                      <span className="pacsrs-modality-badge">{study.modality}</span>
+                    </td>
+                    <td className="pacsrs-table-cell">{study.studyDescription}</td>
+                    <td className="pacsrs-table-cell text-center">{study.numberOfSeries}</td>
+                    <td className="pacsrs-table-cell text-center">{study.numberOfImages}</td>
+                    <td className="pacsrs-table-cell">
+                      <div className="pacsrs-action-buttons">
+                        <a href="#" onClick={() => handleStudySelect(study)} className="pacsrs-action-btn pacsrs-view-btn" role="button">
+                          <Eye size={18} className="w-3 h-3" />
+                          View
+                        </a>
+                        <a href="#" onClick={() => handleExportStudy(study)} className="pacsrs-action-btn pacsrs-export-btn" role="button">
+                          <Download size={18} className="w-3 h-3" />
+                          Export
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
 
-      <input
-        type="file"
-        accept=".dcm,.dicom"
-        multiple
-        ref={fileInputRef}
-        style={{ display: 'none' }}
-        onChange={handleFileUpload}
-      />
+        <input
+          type="file"
+          accept=".dcm,.dicom"
+          multiple
+          ref={fileInputRef}
+          style={{ display: 'none' }}
+          onChange={handleFileUpload}
+        />
 
-      <Dialog
-        open={loginOpen}
-        onClose={() => setLoginOpen(false)}
-        fullWidth
-        maxWidth="sm"
-        TransitionComponent={Transition}
-      >
-        <Login
+        <Dialog
           open={loginOpen}
           onClose={() => setLoginOpen(false)}
-          onSignupClick={switchToSignup}
-          onLoginSuccess={handleLoginSuccess}
-        />
-      </Dialog>
-
-      <Dialog
-        open={signupOpen}
-        onClose={() => setSignupOpen(false)}
-        fullWidth
-        maxWidth="md"
-        TransitionComponent={Transition}
-      >
-        <Signup
-          onClose={() => setSignupOpen(false)}
-          onLoginClick={switchToLogin}
-          onSignup={handleSignupSuccess}
-        />
-      </Dialog>
-
-      <Dialog
-        open={showSampleViewer}
-        onClose={() => setShowSampleViewer(false)}
-        fullWidth
-        maxWidth="lg"
-        TransitionComponent={Transition}
-      >
-        <div style={{ padding: '20px', textAlign: 'center' }}>
-          <img
-            src={screenshot}
-            alt="Sample DICOM Viewer"
-            style={{ maxWidth: '100%', maxHeight: '80vh' }}
+          fullWidth
+          maxWidth="sm"
+          TransitionComponent={Transition}
+        >
+          <Login
+            open={loginOpen}
+            onClose={() => setLoginOpen(false)}
+            onSignupClick={switchToSignup}
+            onLoginSuccess={handleLoginSuccess}
           />
-        </div>
-      </Dialog>
-    </div>
+        </Dialog>
+
+        <Dialog
+          open={signupOpen}
+          onClose={() => setSignupOpen(false)}
+          fullWidth
+          maxWidth="md"
+          TransitionComponent={Transition}
+        >
+          <Signup
+            onClose={() => setSignupOpen(false)}
+            onLoginClick={switchToLogin}
+            onSignup={handleSignupSuccess}
+          />
+        </Dialog>
+
+        <Dialog
+          open={showSampleViewer}
+          onClose={() => setShowSampleViewer(false)}
+          fullWidth
+          maxWidth="lg"
+          TransitionComponent={Transition}
+        >
+          <div style={{ padding: '20px', textAlign: 'center', backgroundColor: 'var(--container-bg)', color: 'var(--text-color)' }}>
+            <img
+              src={screenshot}
+              alt="Sample DICOM Viewer"
+              style={{ maxWidth: '100%', maxHeight: '80vh' }}
+            />
+          </div>
+        </Dialog>
+      </div>
+    </>
   );
 };
 
