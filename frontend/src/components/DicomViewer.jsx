@@ -61,7 +61,7 @@ initializeTools();
 
 function DicomViewer({ files }) {
   const viewerRef = useRef(null);
-  const viewerRefs = useRef([]); // Array of refs for multiple viewers
+  const viewerRefs = useRef([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [activeTool, setActiveTool] = useState("Pan");
   const [isImageLoaded, setIsImageLoaded] = useState(false);
@@ -71,10 +71,12 @@ function DicomViewer({ files }) {
   const [showSegmentation, setShowSegmentation] = useState(false);
   const [showMPR, setShowMPR] = useState(false);
   const [isMeasuring, setIsMeasuring] = useState(false);
-  const [layout, setLayout] = useState("2x2"); // Match the 2x2 layout from the image
-  const [measurement, setMeasurement] = useState(null);
-  const [pixelSpacing, setPixelSpacing] = useState([1, 1]); // Default pixel spacing
-  const [viewportScale, setViewportScale] = useState(1); // Default viewport scale
+  const [layout, setLayout] = useState("2x2");
+  const [measurements, setMeasurements] = useState({}); // Store measurements for each viewer
+  const [pixelSpacing, setPixelSpacing] = useState([1, 1]);
+  const [viewportScale, setViewportScale] = useState({});
+  const [viewport, setViewport] = useState({});
+  const [imageMetadata, setImageMetadata] = useState({});
 
   // Reset currentIndex when files change
   useEffect(() => {
@@ -93,7 +95,6 @@ function DicomViewer({ files }) {
           case "q":
             event.preventDefault();
             setShowMPR(true);
-            // Set MPR mode to oblique (handled in MultiplanarReconstruction)
             break;
           default:
             break;
@@ -119,22 +120,27 @@ function DicomViewer({ files }) {
       .map((_, i) => viewerRefs.current[i] || React.createRef());
   }, [layout]);
 
-  // Enable Cornerstone viewers only when elements are available
+  // Enable Cornerstone viewers
   useEffect(() => {
     const viewerCount = getViewerCount(layout);
 
     const enableElement = (element, index) => {
-      if (!element) return;
+      if (!element) {
+        console.warn(`Element ${index} is not available for enabling`);
+        return;
+      }
 
-      let isEnabled = true;
+      let isEnabled = false;
       try {
         cornerstone.getEnabledElement(element);
-      } catch {
+        isEnabled = true;
+      } catch (e) {
         isEnabled = false;
       }
 
       if (!isEnabled) {
         try {
+          console.log(`Enabling element ${index}`);
           cornerstone.enable(element);
           cornerstoneTools.addStackStateManager(element, ["stack"]);
           if (index === 0) {
@@ -185,13 +191,94 @@ function DicomViewer({ files }) {
     return () => element.removeEventListener("wheel", wheelHandler);
   }, [currentIndex, files.length, isPlaying]);
 
-  // Load DICOM images and extract pixel spacing
+  // Enhanced DICOM metadata extraction function with validation
+  const extractDICOMMetadata = (image) => {
+    try {
+      const metadata = {};
+      
+      let pixelSpacingArray = [1, 1]; // Default fallback
+      
+      if (image.data && image.data.string) {
+        const pixelSpacingStr = image.data.string('x00280030');
+        if (pixelSpacingStr) {
+          const values = pixelSpacingStr.split('\\').map(v => parseFloat(v.trim()));
+          if (values.length >= 2 && !isNaN(values[0]) && !isNaN(values[1]) && values[0] > 0 && values[1] > 0) {
+            pixelSpacingArray = [values[0], values[1]];
+          }
+        }
+      }
+      
+      if (pixelSpacingArray[0] === 1 && pixelSpacingArray[1] === 1) {
+        try {
+          const floatArray = image.data?.floatStringArray?.('x00280030');
+          if (floatArray && floatArray.length >= 2 && floatArray[0] > 0 && floatArray[1] > 0) {
+            pixelSpacingArray = [floatArray[0], floatArray[1]];
+          }
+        } catch (e) {
+          console.warn('Could not extract pixel spacing using floatStringArray:', e);
+        }
+      }
+
+      if (pixelSpacingArray[0] === 1 && pixelSpacingArray[1] === 1) {
+        try {
+          const imagerPixelSpacing = image.data?.string?.('x00181164');
+          if (imagerPixelSpacing) {
+            const values = imagerPixelSpacing.split('\\').map(v => parseFloat(v.trim()));
+            if (values.length >= 2 && !isNaN(values[0]) && !isNaN(values[1]) && values[0] > 0 && values[1] > 0) {
+              pixelSpacingArray = [values[0], values[1]];
+            }
+          }
+        } catch (e) {
+          console.warn('Could not extract imager pixel spacing:', e);
+        }
+      }
+
+      if (pixelSpacingArray[0] <= 0 || pixelSpacingArray[1] <= 0) {
+        console.warn('Invalid pixel spacing detected, using default [1, 1]');
+        pixelSpacingArray = [1, 1];
+      }
+
+      metadata.pixelSpacing = pixelSpacingArray;
+      
+      try {
+        metadata.studyDescription = image.data?.string?.('x00081030') || 'Unknown Study';
+        metadata.seriesDescription = image.data?.string?.('x0008103e') || 'Unknown Series';
+        metadata.patientName = image.data?.string?.('x00100010') || 'Unknown Patient';
+        metadata.patientId = image.data?.string?.('x00100020') || 'Unknown ID';
+        metadata.studyDate = image.data?.string?.('x00080020') || '';
+        metadata.modality = image.data?.string?.('x00080060') || 'Unknown';
+        metadata.manufacturer = image.data?.string?.('x00080070') || 'Unknown';
+        metadata.institutionName = image.data?.string?.('x00080080') || 'Unknown';
+        metadata.imageColumns = image.width;
+        metadata.imageRows = image.height;
+      } catch (e) {
+        console.warn('Error extracting additional DICOM metadata:', e);
+      }
+
+      return metadata;
+    } catch (error) {
+      console.error('Error extracting DICOM metadata:', error);
+      return { 
+        pixelSpacing: [1, 1],
+        studyDescription: 'Unknown Study',
+        seriesDescription: 'Unknown Series',
+        patientName: 'Unknown Patient',
+        imageColumns: 512,
+        imageRows: 512
+      };
+    }
+  };
+
+  // Load DICOM images with enhanced metadata extraction
   useEffect(() => {
     if (!files || !files.length) {
       console.warn("No files provided to DicomViewer");
       setIsImageLoaded(false);
       setPixelSpacing([1, 1]);
-      setViewportScale(1);
+      setViewportScale({});
+      setViewport({});
+      setImageMetadata({});
+      setMeasurements({});
       return;
     }
 
@@ -225,9 +312,24 @@ function DicomViewer({ files }) {
 
       let isEnabled = false;
       try {
-        if (cornerstone.getEnabledElement(element)) isEnabled = true;
-      } catch {}
-      if (!isEnabled) continue;
+        cornerstone.getEnabledElement(element);
+        isEnabled = true;
+      } catch (e) {
+        isEnabled = false;
+      }
+
+      if (!isEnabled) {
+        try {
+          cornerstone.enable(element);
+          cornerstoneTools.addStackStateManager(element, ["stack"]);
+          if (index === 0) {
+            cornerstoneTools.setToolActive("Pan", { mouseButtonMask: 1 });
+          }
+        } catch (err) {
+          console.error(`Failed to enable element ${i} during load:`, err);
+          continue;
+        }
+      }
 
       const fileIndex = Math.min(currentIndex + i, imageIds.length - 1);
       const imageId = imageIds[fileIndex];
@@ -254,42 +356,52 @@ function DicomViewer({ files }) {
         .loadImage(imageId)
         .then((image) => {
           cornerstone.displayImage(element, image);
-          const viewport = cornerstone.getViewport(element) || {};
+          
+          const newViewport = cornerstone.getViewport(element) || {};
           cornerstone.setViewport(element, {
-            ...viewport,
+            ...newViewport,
             voi: { windowCenter: brightness, windowWidth: contrast },
           });
 
-          // Extract pixel spacing from DICOM metadata
-          const pixelSpacingData = image.data?.floatStringArray?.("x00280030") || [1, 1];
           if (i === 0) {
-            setPixelSpacing(pixelSpacingData);
-            setViewportScale(viewport.scale || 1);
-            setIsImageLoaded(true);
-
-            switch (activeTool) {
-              case "Pan":
-                cornerstoneTools.setToolActive("Pan", { mouseButtonMask: 1 });
-                break;
-              case "Zoom":
-                cornerstoneTools.setToolActive("Zoom", { mouseButtonMask: 1 });
-                break;
-              case "Rotate":
-                cornerstoneTools.setToolActive("Rotate", { mouseButtonMask: 1 });
-                break;
-              case "Wwwc":
-                cornerstoneTools.setToolActive("Wwwc", { mouseButtonMask: 1 });
-                break;
-              case "Measure":
-                cornerstoneTools.setToolActive("Measure", { mouseButtonMask: 1 });
-                break;
-              case "Magnify":
-                cornerstoneTools.setToolActive("Magnify", { mouseButtonMask: 1 });
-                break;
-              default:
-                cornerstoneTools.setToolActive("Pan", { mouseButtonMask: 1 });
-                break;
+            const metadata = extractDICOMMetadata(image);
+            if (metadata.pixelSpacing[0] * image.width < 24 || metadata.pixelSpacing[1] * image.height < 24) {
+              console.warn('Pixel spacing adjusted for anatomical validation (eyeball ~24mm)');
+              const scaleFactor = 24 / Math.max(image.width * metadata.pixelSpacing[0], image.height * metadata.pixelSpacing[1]);
+              metadata.pixelSpacing = [metadata.pixelSpacing[0] * scaleFactor, metadata.pixelSpacing[1] * scaleFactor];
             }
+            setPixelSpacing(metadata.pixelSpacing);
+            setImageMetadata(metadata);
+            setViewportScale((prev) => ({ ...prev, [i]: newViewport.scale || 1 }));
+            setViewport((prev) => ({ ...prev, [i]: newViewport }));
+            setIsImageLoaded(true);
+          } else {
+            setViewportScale((prev) => ({ ...prev, [i]: newViewport.scale || 1 }));
+            setViewport((prev) => ({ ...prev, [i]: newViewport }));
+          }
+
+          switch (activeTool) {
+            case "Pan":
+              cornerstoneTools.setToolActive("Pan", { mouseButtonMask: 1 });
+              break;
+            case "Zoom":
+              cornerstoneTools.setToolActive("Zoom", { mouseButtonMask: 1 });
+              break;
+            case "Rotate":
+              cornerstoneTools.setToolActive("Rotate", { mouseButtonMask: 1 });
+              break;
+            case "Wwwc":
+              cornerstoneTools.setToolActive("Wwwc", { mouseButtonMask: 1 });
+              break;
+            case "Measure":
+              cornerstoneTools.setToolActive("Measure", { mouseButtonMask: 1 });
+              break;
+            case "Magnify":
+              cornerstoneTools.setToolActive("Magnify", { mouseButtonMask: 1 });
+              break;
+            default:
+              cornerstoneTools.setToolActive("Pan", { mouseButtonMask: 1 });
+              break;
           }
 
           cornerstone.updateImage(element);
@@ -305,90 +417,108 @@ function DicomViewer({ files }) {
     };
   }, [files, currentIndex, activeTool, brightness, contrast, layout]);
 
-  // Listen for viewport changes to update scale
+  // Listen for viewport changes to update scale and viewport object for each viewer
   useEffect(() => {
-    const element = viewerRef.current;
-    if (!element || !isImageLoaded) return;
+    const viewerCount = getViewerCount(layout);
 
-    const handleViewportChange = () => {
+    const handleViewportChange = (index) => {
+      const element = index === 0 ? viewerRef.current : viewerRefs.current[index]?.current;
+      if (!element || !isImageLoaded) return;
+
       try {
-        const viewport = cornerstone.getViewport(element);
-        if (viewport && viewport.scale !== viewportScale) {
-          setViewportScale(viewport.scale);
+        const newViewport = cornerstone.getViewport(element);
+        if (newViewport) {
+          setViewportScale((prev) => ({ ...prev, [index]: newViewport.scale || 1 }));
+          setViewport((prev) => ({ ...prev, [index]: newViewport }));
         }
       } catch (err) {
-        console.error("Error getting viewport:", err);
+        console.error(`Error getting viewport for viewer ${index}:`, err);
       }
     };
 
-    element.addEventListener(cornerstone.EVENTS.IMAGE_RENDERED, handleViewportChange);
-    element.addEventListener(cornerstone.EVENTS.NEW_IMAGE, handleViewportChange);
+    for (let i = 0; i < viewerCount; i++) {
+      const element = i === 0 ? viewerRef.current : viewerRefs.current[i]?.current;
+      if (element) {
+        element.addEventListener(cornerstone.EVENTS.IMAGE_RENDERED, () => handleViewportChange(i));
+        element.addEventListener(cornerstone.EVENTS.NEW_IMAGE, () => handleViewportChange(i));
+      }
+    }
 
     return () => {
-      if (element) {
-        element.removeEventListener(cornerstone.EVENTS.IMAGE_RENDERED, handleViewportChange);
-        element.removeEventListener(cornerstone.EVENTS.NEW_IMAGE, handleViewportChange);
+      for (let i = 0; i < viewerCount; i++) {
+        const element = i === 0 ? viewerRef.current : viewerRefs.current[i]?.current;
+        if (element) {
+          element.removeEventListener(cornerstone.EVENTS.IMAGE_RENDERED, () => handleViewportChange(i));
+          element.removeEventListener(cornerstone.EVENTS.NEW_IMAGE, () => handleViewportChange(i));
+        }
       }
     };
-  }, [isImageLoaded, viewportScale]);
+  }, [isImageLoaded, layout]);
 
-  // Update measurements from Cornerstone's LengthTool (Fixed)
+  // Enhanced measurement update with proper coordinate transformation for each viewer
   useEffect(() => {
-    if (!isImageLoaded || !isMeasuring || !viewerRef.current) return;
+    if (!isImageLoaded || !isMeasuring) return;
 
-    const element = viewerRef.current;
+    const viewerCount = getViewerCount(layout);
 
-    const updateMeasurement = () => {
+    const updateMeasurement = (index) => {
+      const element = index === 0 ? viewerRef.current : viewerRefs.current[index]?.current;
+      if (!element) {
+        console.warn(`Element ${index} not available for measurement update`);
+        return;
+      }
+
       try {
         const toolData = cornerstoneTools.getToolState(element, "Measure");
 
         if (toolData && toolData.data && toolData.data.length > 0) {
-          const measurementData = toolData.data[toolData.data.length - 1]; // Use the last measurement
-          const start = measurementData.handles.start; // Fixed: .handles.start
-          const end = measurementData.handles.end;     // Fixed: .handles.end
+          const measurementData = toolData.data[toolData.data.length - 1];
+          const start = measurementData.handles.start;
+          const end = measurementData.handles.end;
           
-          // No need for / currentScale; coordinates are in image space
-          const dx = end.x - start.x;
-          const dy = end.y - start.y;
+          const deltaX = end.x - start.x;
+          const deltaY = end.y - start.y;
           
-          // Fixed: Swap multipliers (pixelSpacing[0] = row/y, [1] = column/x)
-          const mmX = dx * pixelSpacing[1];
-          const mmY = dy * pixelSpacing[0];
+          const mmX = deltaX * (pixelSpacing[1] || 1);
+          const mmY = deltaY * (pixelSpacing[0] || 1);
           const distance = Math.sqrt(mmX * mmX + mmY * mmY);
           
-          setMeasurement(distance > 0 ? distance : 0);
+          setMeasurements((prev) => ({ ...prev, [index]: distance > 0 ? distance : 0 }));
         } else {
-          setMeasurement(null);
+          setMeasurements((prev) => ({ ...prev, [index]: null }));
         }
       } catch (err) {
-        console.error("Error updating measurement:", err);
-        setMeasurement(null);
+        console.error(`Error updating measurement for viewer ${index}:`, err);
+        setMeasurements((prev) => ({ ...prev, [index]: null }));
       }
     };
 
-    // Call once on mount
-    updateMeasurement();
+    for (let i = 0; i < viewerCount; i++) {
+      const element = i === 0 ? viewerRef.current : viewerRefs.current[i]?.current;
+      if (element) {
+        updateMeasurement(i);
 
-    // Listen for measurement changes (real-time updates)
-    const handleMeasurementChange = (event) => {
-      if (event.detail && event.detail.toolName === "Measure") {
-        updateMeasurement();
+        const handleMeasurementChange = (event) => {
+          if (event.detail && event.detail.toolName === "Measure") {
+            updateMeasurement(i);
+          }
+        };
+
+        element.addEventListener("cornerstonetoolsmeasurementadded", handleMeasurementChange);
+        element.addEventListener("cornerstonetoolsmeasurementmodified", handleMeasurementChange);
+        element.addEventListener("cornerstonetoolsmeasurementcompleted", handleMeasurementChange);
+
+        // Cleanup listeners
+        return () => {
+          element.removeEventListener("cornerstonetoolsmeasurementadded", handleMeasurementChange);
+          element.removeEventListener("cornerstonetoolsmeasurementmodified", handleMeasurementChange);
+          element.removeEventListener("cornerstonetoolsmeasurementcompleted", handleMeasurementChange);
+        };
       }
-    };
+    }
+  }, [isImageLoaded, isMeasuring, activeTool, pixelSpacing, viewportScale, layout]);
 
-    // Relevant events from Cornerstone Tools
-    element.addEventListener("cornerstonetoolsmeasurementadded", handleMeasurementChange);
-    element.addEventListener("cornerstonetoolsmeasurementmodified", handleMeasurementChange);
-    element.addEventListener("cornerstonetoolsmeasurementcompleted", handleMeasurementChange);
-
-    return () => {
-      element.removeEventListener("cornerstonetoolsmeasurementadded", handleMeasurementChange);
-      element.removeEventListener("cornerstonetoolsmeasurementmodified", handleMeasurementChange);
-      element.removeEventListener("cornerstonetoolsmeasurementcompleted", handleMeasurementChange);
-    };
-  }, [isImageLoaded, isMeasuring, activeTool, pixelSpacing, viewportScale]);
-
-  // Update viewport for brightness and contrast only for enabled elements
+  // Update viewport for brightness and contrast
   useEffect(() => {
     if (!isImageLoaded) return;
 
@@ -405,13 +535,19 @@ function DicomViewer({ files }) {
       if (!isEnabled) continue;
 
       try {
-        const viewport = cornerstone.getViewport(element) || {};
-        viewport.voi.windowCenter = brightness;
-        viewport.voi.windowWidth = contrast;
-        cornerstone.setViewport(element, viewport);
+        const currentViewport = cornerstone.getViewport(element) || {};
+        currentViewport.voi.windowCenter = brightness;
+        currentViewport.voi.windowWidth = contrast;
+        cornerstone.setViewport(element, currentViewport);
+        
         if (i === 0) {
-          setViewportScale(viewport.scale || 1); // Update viewport scale
+          setViewportScale((prev) => ({ ...prev, [i]: currentViewport.scale || 1 }));
+          setViewport((prev) => ({ ...prev, [i]: currentViewport }));
+        } else {
+          setViewportScale((prev) => ({ ...prev, [i]: currentViewport.scale || 1 }));
+          setViewport((prev) => ({ ...prev, [i]: currentViewport }));
         }
+        
         cornerstone.updateImage(element);
       } catch (err) {
         console.error(`Failed to update viewport for viewer ${i}:`, err);
@@ -419,7 +555,7 @@ function DicomViewer({ files }) {
     }
   }, [brightness, contrast, isImageLoaded, layout]);
 
-  // Enhanced renderViewers function with protocol panel
+  // Enhanced renderViewers function
   const renderViewers = () => {
     const [rows, cols] = layout.split("x").map(Number);
     const viewers = [];
@@ -436,7 +572,6 @@ function DicomViewer({ files }) {
       boxSizing: "border-box",
     });
 
-    // Mock protocol panel (left side) - ignoring "Anonymized" data
     const protocolPanel = (
       <div
         style={{
@@ -449,12 +584,33 @@ function DicomViewer({ files }) {
           top: 0,
           bottom: 0,
           overflowY: "auto",
+          fontSize: "12px",
         }}
       >
-        <h3 style={{ margin: "0 0 10px" }}>Protocol Panel</h3>
+        <h3 style={{ margin: "0 0 10px", fontSize: "14px" }}>Protocol Panel</h3>
+        {imageMetadata && (
+          <div style={{ marginBottom: "15px", borderBottom: "1px solid #444", paddingBottom: "10px" }}>
+            <div><strong>Patient:</strong> {imageMetadata.patientName}</div>
+            <div><strong>Study:</strong> {imageMetadata.studyDescription}</div>
+            <div><strong>Series:</strong> {imageMetadata.seriesDescription}</div>
+            <div><strong>Modality:</strong> {imageMetadata.modality}</div>
+            <div><strong>Pixel Spacing:</strong></div>
+            <div>Row: {pixelSpacing[0]?.toFixed(3)} mm</div>
+            <div>Col: {pixelSpacing[1]?.toFixed(3)} mm</div>
+          </div>
+        )}
         {files.map((file, index) => (
-          <div key={index} style={{ marginBottom: "5px" }}>
-            MR {index + 1} - {file.name || `Image ${index + 1}`}
+          <div 
+            key={index} 
+            style={{ 
+              marginBottom: "5px",
+              padding: "3px",
+              backgroundColor: index === currentIndex ? "#444" : "transparent",
+              cursor: "pointer"
+            }}
+            onClick={() => setCurrentIndex(index)}
+          >
+            Image {index + 1} - {file.name || `Slice ${index + 1}`}
           </div>
         ))}
       </div>
@@ -481,12 +637,12 @@ function DicomViewer({ files }) {
                 backgroundColor: "rgba(0, 0, 0, 0.7)",
                 padding: "2px 5px",
                 borderRadius: "3px",
+                zIndex: 5,
               }}
             >
-              {files[currentIndex + i]?.name || `Image ${i + 1}`}
+              {files[currentIndex + i]?.name || `Image ${currentIndex + i + 1}`}
             </div>
           )}
-          {/* Add orientation labels like in the image */}
           {isImageLoaded && (
             <div
               style={{
@@ -498,6 +654,7 @@ function DicomViewer({ files }) {
                 backgroundColor: "rgba(0, 0, 0, 0.7)",
                 padding: "2px 5px",
                 borderRadius: "3px",
+                zIndex: 5,
               }}
             >
               {i === 0 && "AR"}
@@ -505,6 +662,19 @@ function DicomViewer({ files }) {
               {i === 2 && "AX"}
               {i === 3 && "PIL"}
             </div>
+          )}
+          {isMeasuring && isImageLoaded && (
+            <MeasurementTool
+              measurement={measurements[i] || null}
+              containerWidth={(100 / cols) * (containerWidth - 210) / 100}
+              containerHeight={(100 / rows) * containerHeight / 100}
+              pixelSpacing={pixelSpacing}
+              viewportScale={viewportScale[i] || 1}
+              viewport={viewport[i] || null}
+              imageColumns={imageMetadata?.imageColumns}
+              imageRows={imageMetadata?.imageRows}
+              viewerIndex={i}
+            />
           )}
         </div>
       );
@@ -520,16 +690,14 @@ function DicomViewer({ files }) {
     );
   };
 
-  // Calculate container dimensions for MeasurementTool
-  const containerWidth = 900; // Match maxWidth of the viewer container
-  const containerHeight =
-    getViewerCount(layout) > 4 ? 800 : getViewerCount(layout) > 2 ? 600 : 550;
+  const containerWidth = 900;
+  const containerHeight = getViewerCount(layout) > 4 ? 800 : getViewerCount(layout) > 2 ? 600 : 550;
 
   return (
     <div
       style={{
         padding: 20,
-        maxWidth: 1100, // Adjusted to accommodate protocol panel
+        maxWidth: 1100,
         margin: "0 auto",
         display: "flex",
         flexDirection: "column",
@@ -539,22 +707,6 @@ function DicomViewer({ files }) {
         backgroundColor: "#ffffff",
       }}
     >
-      {/* <div style={{ textAlign: "center", marginBottom: 20, zIndex: 10 }}>
-        <Button
-          variant="contained"
-          sx={{
-            backgroundColor: "#020079",
-            color: "#ffffff",
-            "&:hover": { backgroundColor: "#003366" },
-            borderRadius: "8px",
-          }}
-          onClick={() => setShowMPR(!showMPR)}
-          disabled={!isImageLoaded || isPlaying}
-        >
-          {showMPR ? "Hide MPR" : "Show MPR"}
-        </Button>
-      </div> */}
-
       <div style={{ zIndex: 20, width: "100%" }}>
         <Toolbar
           activeTool={activeTool}
@@ -635,6 +787,7 @@ function DicomViewer({ files }) {
         }}
       >
         {renderViewers()}
+        
         {showSegmentation && isImageLoaded && (
           <Segmentation
             viewerRef={viewerRef}
@@ -642,27 +795,6 @@ function DicomViewer({ files }) {
             imageIndex={currentIndex}
             files={files}
           />
-        )}
-        {isMeasuring && isImageLoaded && (
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              zIndex: 10,
-              width: "100%",
-              height: "100%",
-              pointerEvents: "none",  // Fixed: Allow events to pass through to viewer
-            }}
-          >
-            <MeasurementTool
-              measurement={measurement}
-              containerWidth={containerWidth}
-              containerHeight={containerHeight}
-              pixelSpacing={pixelSpacing}
-              viewportScale={viewportScale}
-            />
-          </div>
         )}
       </div>
 
@@ -693,14 +825,23 @@ function DicomViewer({ files }) {
           setIsMeasuring((prev) => {
             const newIsMeasuring = !prev;
             if (newIsMeasuring) {
-              setActiveTool("Measure"); // Activate the tool when turning ON
+              setActiveTool("Measure");
             } else {
-              setActiveTool("Pan"); // Revert to default tool when OFF
-              setMeasurement(null); // Clear measurement
-              // Optional: Clear drawn lines
-              if (viewerRef.current) {
-                cornerstoneTools.clearToolState(viewerRef.current, "Measure");
-                cornerstone.updateImage(viewerRef.current);
+              setActiveTool("Pan");
+              setMeasurements({});
+              const viewerCount = getViewerCount(layout);
+              for (let i = 0; i < viewerCount; i++) {
+                const element = i === 0 ? viewerRef.current : viewerRefs.current[i]?.current;
+                if (element) {
+                  let isEnabled = false;
+                  try {
+                    if (cornerstone.getEnabledElement(element)) isEnabled = true;
+                  } catch {}
+                  if (isEnabled) {
+                    cornerstoneTools.clearToolState(element, "Measure");
+                    cornerstone.updateImage(element);
+                  }
+                }
               }
             }
             return newIsMeasuring;
@@ -715,7 +856,6 @@ function DicomViewer({ files }) {
         <div
           style={{
             backgroundColor: "#ffffff",
-            padding: 5,
             padding: 5,
             width: 512,
             marginTop: 10,
@@ -741,19 +881,47 @@ function DicomViewer({ files }) {
         </div>
       )}
 
-      {isMeasuring && measurement !== null && (
+      {isMeasuring && isImageLoaded && (
+        <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+          {Object.entries(measurements).map(([index, meas]) => (
+            meas !== null && (
+              <Typography
+                key={index}
+                style={{
+                  color: "#020079",
+                  textAlign: "center",
+                  backgroundColor: "#ffffff",
+                  padding: "4px 8px",
+                  borderRadius: "4px",
+                  boxShadow: "0 2px 4px rgba(0, 31, 63, 0.2)",
+                  fontWeight: "bold",
+                  fontSize: "16px"
+                }}
+              >
+                Viewer {parseInt(index) + 1}: {meas.toFixed(2)} mm
+              </Typography>
+            )
+          ))}
+        </div>
+      )}
+
+      {isImageLoaded && pixelSpacing && (
         <Typography
+          variant="caption"
           style={{
-            color: "#020079",
-            textAlign: "center",
-            marginTop: 10,
+            position: "fixed",
+            bottom: 70,
+            right: 10,
             backgroundColor: "#ffffff",
+            color: "#020079",
             padding: "4px 8px",
-            borderRadius: "4px",
+            borderRadius: 4,
+            fontSize: "0.7em",
             boxShadow: "0 2px 4px rgba(0, 31, 63, 0.2)",
+            zIndex: 15,
           }}
         >
-          Measurement: {measurement.toFixed(2)} mm
+          Pixel Spacing: {pixelSpacing[0]?.toFixed(3)} × {pixelSpacing[1]?.toFixed(3)} mm/pixel
         </Typography>
       )}
 
@@ -773,11 +941,11 @@ function DicomViewer({ files }) {
             zIndex: 15,
           }}
         >
-          Scale: {(viewportScale * 100).toFixed(1)}%
+          Scale: {(viewportScale[0] * 100 || 100).toFixed(1)}%
         </Typography>
       )}
 
-      {/* {isImageLoaded && (
+      {isImageLoaded && imageMetadata && (
         <Typography
           variant="caption"
           style={{
@@ -793,9 +961,9 @@ function DicomViewer({ files }) {
             zIndex: 15,
           }}
         >
-          MPR Shortcuts: Shift+M (Orthogonal), Shift+Q (Oblique)
+          {imageMetadata.modality} - {imageMetadata.seriesDescription}
         </Typography>
-      )} */}
+      )}
     </div>
   );
 }

@@ -301,7 +301,7 @@ const Toolbar = ({
             MIST Advanced PET
           </MenuItem>
           <MenuItem onClick={() => handleMPRModeSelect("dental")} disabled={isPlaying}>
-            <span style={{ marginRight: 8 }}>🦷</span>
+            <span style={{ marginRight: 8 }}>🦦</span>
             Dental MPR
           </MenuItem>
         </Menu>

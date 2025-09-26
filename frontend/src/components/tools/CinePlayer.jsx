@@ -2,8 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Button, Slider, Popover, Box } from "@mui/material";
 import * as cornerstone from "cornerstone-core";
 
-const CinePlayer = ({ viewerRef, files }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
+const CinePlayer = ({ viewerRef, files, isPlaying, setIsPlaying }) => {
   const [speed, setSpeed] = useState(500); // ms per frame
   const frameIndex = useRef(0);
   const intervalRef = useRef(null);
@@ -15,9 +14,14 @@ const CinePlayer = ({ viewerRef, files }) => {
     intervalRef.current = setInterval(async () => {
       try {
         const file = files[frameIndex.current];
-        if (!file) return;
-
-        const imageId = `dicomweb:${URL.createObjectURL(file)}`;
+        let imageId;
+        if (typeof file === "string") {
+          imageId = file.startsWith("wadouri:") ? file : `wadouri:${file}`;
+        } else if (file instanceof Blob || file instanceof File) {
+          imageId = `wadouri:${URL.createObjectURL(file)}`;
+        } else {
+          return;
+        }
         const image = await cornerstone.loadAndCacheImage(imageId);
 
         cornerstone.displayImage(viewerRef.current, image);

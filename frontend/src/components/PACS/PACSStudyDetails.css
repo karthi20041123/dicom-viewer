@@ -271,6 +271,7 @@ h1, h2, h3, h4 {
   flex-direction: column;
   justify-content: space-between;
   height: auto;
+  width: 350px;
 }
 
 .pacssd-series-card:hover {

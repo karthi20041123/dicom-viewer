@@ -21,7 +21,7 @@ const API_BASE_URL = 'http://localhost:5000/api';
 
 const AddStudyPage = ({ 
   onBack, 
-  isLoggedIn, 
+  isLoggedIn: propIsLoggedIn, 
   existingStudy = null, 
   mode = 'create', // 'create' or 'edit'
   onStudySaved 
@@ -54,25 +54,12 @@ const AddStudyPage = ({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
 
-  useEffect(() => {
-    if (existingStudy && mode === 'edit') {
-      setStudyData(prev => ({
-        ...prev,
-        patientName: existingStudy.patientName || '',
-        patientID: existingStudy.patientID || '',
-        studyDate: existingStudy.studyDate ? new Date(existingStudy.studyDate).toISOString().split('T')[0] : '',
-        studyTime: existingStudy.studyTime || '',
-        studyDescription: existingStudy.studyDescription || '',
-        modality: existingStudy.modality || '',
-        accessionNumber: existingStudy.accessionNumber || '',
-        studyID: existingStudy.studyID || '',
-      }));
-    }
-  }, [existingStudy, mode]);
-
+  // Use propIsLoggedIn if provided, otherwise check local storage
   const getAuthToken = () => {
     return localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
   };
+
+  const effectiveIsLoggedIn = typeof propIsLoggedIn !== 'undefined' ? propIsLoggedIn : !!getAuthToken();
 
   const apiRequest = async (endpoint, options = {}) => {
     const token = getAuthToken();
@@ -113,6 +100,22 @@ const AddStudyPage = ({
     }
   };
 
+  useEffect(() => {
+    if (existingStudy && mode === 'edit') {
+      setStudyData(prev => ({
+        ...prev,
+        patientName: existingStudy.patientName || '',
+        patientID: existingStudy.patientID || '',
+        studyDate: existingStudy.studyDate ? new Date(existingStudy.studyDate).toISOString().split('T')[0] : '',
+        studyTime: existingStudy.studyTime || '',
+        studyDescription: existingStudy.studyDescription || '',
+        modality: existingStudy.modality || '',
+        accessionNumber: existingStudy.accessionNumber || '',
+        studyID: existingStudy.studyID || '',
+      }));
+    }
+  }, [existingStudy, mode]);
+
   const handleInputChange = (field, value) => {
     setStudyData(prev => ({
       ...prev,
@@ -133,7 +136,7 @@ const AddStudyPage = ({
   };
 
   const handleSaveStudy = async () => {
-    if (!isLoggedIn) {
+    if (!effectiveIsLoggedIn) {
       setMessage('Please log in to save study details');
       return;
     }
@@ -211,7 +214,7 @@ const AddStudyPage = ({
   };
 
   const handleUploadClick = () => {
-    if (!isLoggedIn) {
+    if (!effectiveIsLoggedIn) {
       setMessage('Please log in to upload DICOM files');
       setTimeout(() => setMessage(''), 3000);
       return;
@@ -227,7 +230,7 @@ const AddStudyPage = ({
       return;
     }
 
-    if (!isLoggedIn) {
+    if (!effectiveIsLoggedIn) {
       setMessage('Please log in to upload files');
       setTimeout(() => setMessage(''), 3000);
       return;
@@ -598,7 +601,7 @@ const AddStudyPage = ({
         <div className="action-section">
           <button 
             onClick={handleSaveStudy}
-            disabled={loading || !isLoggedIn}
+            disabled={loading || !effectiveIsLoggedIn}
             className="save-btn primary"
           >
             {loading ? <RefreshCw size={20} className="animate-spin" /> : <Save size={20} />}

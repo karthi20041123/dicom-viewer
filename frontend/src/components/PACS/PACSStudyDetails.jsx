@@ -68,7 +68,7 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
     };
 
     fetchStudyDetails();
-  }, [selectedStudy]);
+  }, [selectedStudy, backendUrl]);
 
   const handleSeriesSelect = (series) => {
     setSelectedSeries(series);
@@ -146,27 +146,21 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
                 const response = await fetch(url, { headers });
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const buffer = await response.arrayBuffer();
-                fileName = instance.originalFilename || instance.filePath.split('/').pop() || `image_${instance.instanceNumber}.dcm`;
+                fileName = instance.filename || `image_${instance.instanceNumber}.dcm`;
                 zip.file(fileName, buffer);
               } else {
                 if (selectedFormat === 'png') {
                   fileData = canvas.toDataURL('image/png').split(',')[1];
-                  fileName = (instance.originalFilename || 'image').replace(/\.[^/.]+$/, '') + `_${instance.instanceNumber}.png`;
+                  fileName = `${instance.filename || 'image'}_${instance.instanceNumber}.png`;
                 } else if (selectedFormat === 'jpg') {
                   fileData = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
-                  fileName = (instance.originalFilename || 'image').replace(/\.[^/.]+$/, '') + `_${instance.instanceNumber}.jpg`;
+                  fileName = `${instance.filename || 'image'}_${instance.instanceNumber}.jpg`;
                 }
                 if (fileData) {
                   zip.file(fileName, fileData, { base64: true });
                 }
               }
             }
-          } else {
-            const response = await fetch(url, { headers });
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const buffer = await response.arrayBuffer();
-            fileName = instance.originalFilename || instance.filePath.split('/').pop() || `image_${instance.instanceNumber}.dcm`;
-            zip.file(fileName, buffer);
           }
         } catch (err) {
           console.error(`Export error for instance ${instance.sopInstanceUID}:`, err);
@@ -174,7 +168,7 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
           const response = await fetch(url, { headers });
           if (response.ok) {
             const buffer = await response.arrayBuffer();
-            fileName = instance.originalFilename || instance.filePath.split('/').pop() || `image_${instance.instanceNumber}.dcm`;
+            fileName = instance.filename || `image_${instance.instanceNumber}.dcm`;
             zip.file(fileName, buffer);
           }
         }
@@ -189,12 +183,8 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
     }
     if (Object.keys(zip.files).length > 0) {
       const zipBlob = await zip.generateAsync({ type: 'blob' });
-      saveAs(
-        zipBlob,
-        `exported_${
-          targetSeries ? `series_${targetSeries.seriesNumber}` : `study_${study.id}`
-        }_${new Date().toISOString().split('T')[0]}.${selectedFormat === 'dcm' ? 'zip' : selectedFormat}`
-      );
+      const fileName = `study_${study.patientName}_${new Date().toISOString().split('T')[0]}.zip`;
+      saveAs(zipBlob, fileName);
     } else {
       alert('No files were exported. Check console for errors.');
     }
@@ -237,12 +227,8 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
         selectedSeries={viewingSeries}
         selectedStudy={study}
         onBackToDetails={handleBackFromInstances}
-        onViewInstance={(files) => {
-          console.log('Viewing instance files:', files);
-          if (onViewSeries) {
-            onViewSeries(files);
-          }
-        }}
+        onViewInstance={(imageIds) => onViewSeries(imageIds)}
+        backendUrl={backendUrl}
       />
     );
   }
