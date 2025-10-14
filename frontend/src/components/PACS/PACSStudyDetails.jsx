@@ -7,24 +7,19 @@ import {
   Download,
   ArrowLeft,
   Image,
-  LogOut,
 } from 'lucide-react';
 import * as cornerstone from 'cornerstone-core';
 import * as cornerstoneWADOImageLoader from 'cornerstone-wado-image-loader';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import axios from 'axios';
 import PACSInstancesView from './PACSInstancesView';
 import './PACSStudyDetails.css';
 
-const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogout }) => {
+const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries }) => {
   const [study, setStudy] = useState(null); // Initialize as null
   const [selectedSeries, setSelectedSeries] = useState(null);
   const [viewingSeries, setViewingSeries] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [showLogoutMessage, setShowLogoutMessage] = useState(false);
-
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
   useEffect(() => {
     cornerstoneWADOImageLoader.configure({
@@ -38,49 +33,33 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
   }, []);
 
   useEffect(() => {
-    const fetchStudyDetails = async () => {
-      if (!selectedStudy || !selectedStudy.id) {
-        console.warn('No valid study selected for fetching details');
-        setStudy(null); // Ensure study is null if selectedStudy is invalid
-        return;
-      }
-
-      setLoading(true);
-      try {
-        const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
-        const response = await axios.get(`${backendUrl}/api/dicom/study/${selectedStudy.id}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        if (response.data.success) {
-          setStudy(response.data.study);
-        } else {
-          console.error('Failed to fetch study details:', response.data.message);
-          setStudy(null); // Set to null on failure
-        }
-      } catch (err) {
-        console.error('Error fetching study details:', err);
-        setStudy(null); // Set to null on error
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStudyDetails();
-  }, [selectedStudy, backendUrl]);
+    // Directly use selectedStudy prop instead of fetching from backend
+    if (!selectedStudy || !selectedStudy.id) {
+      console.warn('No valid study selected');
+      setStudy(null);
+      return;
+    }
+    setStudy(selectedStudy);
+  }, [selectedStudy]);
 
   const handleSeriesSelect = (series) => {
     setSelectedSeries(series);
   };
 
   const handleViewSeries = (series) => {
-    const paths = series.instances?.map(instance => instance.filePath).filter(Boolean) || [];
-    if (paths.length === 0) {
+    const instances = series.instances || [];
+    if (instances.length === 0) {
       alert('No DICOM files found in this series!');
       return;
     }
-    const imageIds = paths.map(path => `wadouri:${backendUrl}${path}`);
+    // Generate wadouri image IDs from local file blobs
+    const imageIds = instances
+      .filter((instance) => instance.file)
+      .map((instance) => `wadouri:${URL.createObjectURL(instance.file)}`);
+    if (imageIds.length === 0) {
+      alert('No valid DICOM files available to view!');
+      return;
+    }
     if (onViewSeries) {
       onViewSeries(imageIds);
     } else {
@@ -105,9 +84,9 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
     }
     let instancesToExport = [];
     if (targetSeries) {
-      instancesToExport = targetSeries.instances;
+      instancesToExport = targetSeries.instances || [];
     } else if (study) {
-      instancesToExport = study.series.flatMap(series => series.instances);
+      instancesToExport = study.series.flatMap((series) => series.instances || []);
     }
     if (!instancesToExport.length) {
       alert('No images to export!');
@@ -130,25 +109,25 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
     document.body.appendChild(element);
     try {
       cornerstone.enable(element);
-      const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
       for (const instance of instancesToExport) {
         try {
-          const url = `${backendUrl}${instance.filePath}`;
-          const imageId = `wadouri:${url}`;
-          const image = await cornerstone.loadAndCacheImage(imageId);
-          if (image) {
-            cornerstone.displayImage(element, image);
-            const canvas = element.querySelector('canvas');
-            if (canvas) {
-              let fileData, fileName;
-              if (selectedFormat === 'dcm') {
-                const response = await fetch(url, { headers });
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const buffer = await response.arrayBuffer();
-                fileName = instance.filename || `image_${instance.instanceNumber}.dcm`;
-                zip.file(fileName, buffer);
-              } else {
+          if (!instance.file) {
+            console.warn(`No file object for instance ${instance.sopInstanceUID}`);
+            continue;
+          }
+          const blobUrl = URL.createObjectURL(instance.file);
+          const imageId = `wadouri:${blobUrl}`;
+          if (selectedFormat === 'dcm') {
+            const fileName = instance.filename || `image_${instance.instanceNumber}.dcm`;
+            zip.file(fileName, instance.file);
+          } else {
+            const image = await cornerstone.loadAndCacheImage(imageId);
+            if (image) {
+              cornerstone.displayImage(element, image);
+              await new Promise((resolve) => setTimeout(resolve, 50));
+              const canvas = element.querySelector('canvas');
+              if (canvas) {
+                let fileData, fileName;
                 if (selectedFormat === 'png') {
                   fileData = canvas.toDataURL('image/png').split(',')[1];
                   fileName = `${instance.filename || 'image'}_${instance.instanceNumber}.png`;
@@ -161,15 +140,13 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
                 }
               }
             }
+            URL.revokeObjectURL(blobUrl);
           }
         } catch (err) {
           console.error(`Export error for instance ${instance.sopInstanceUID}:`, err);
-          const url = `${backendUrl}${instance.filePath}`;
-          const response = await fetch(url, { headers });
-          if (response.ok) {
-            const buffer = await response.arrayBuffer();
-            fileName = instance.filename || `image_${instance.instanceNumber}.dcm`;
-            zip.file(fileName, buffer);
+          if (selectedFormat === 'dcm') {
+            const fileName = instance.filename || `image_${instance.instanceNumber}.dcm`;
+            zip.file(fileName, instance.file);
           }
         }
       }
@@ -183,32 +160,11 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
     }
     if (Object.keys(zip.files).length > 0) {
       const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const fileName = `study_${study.patientName}_${new Date().toISOString().split('T')[0]}.zip`;
+      const fileName = `study_${study?.patientName || 'unknown'}_${new Date().toISOString().split('T')[0]}.zip`;
       saveAs(zipBlob, fileName);
     } else {
       alert('No files were exported. Check console for errors.');
     }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('user');
-    localStorage.removeItem('tokenExpires');
-    sessionStorage.removeItem('authToken');
-    sessionStorage.removeItem('user');
-
-    setShowLogoutMessage(true);
-    
-    if (onLogout) {
-      onLogout();
-    }
-
-    setTimeout(() => {
-      setShowLogoutMessage(false);
-      if (onBackToSearch) {
-        onBackToSearch();
-      }
-    }, 1500);
   };
 
   const getUserInitial = () => {
@@ -228,7 +184,6 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
         selectedStudy={study}
         onBackToDetails={handleBackFromInstances}
         onViewInstance={(imageIds) => onViewSeries(imageIds)}
-        backendUrl={backendUrl}
       />
     );
   }
@@ -236,51 +191,42 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
   return (
     <>
       <div className="pacssd-header">
-        <div className="pacssd-max-w-7xl pacssd-mx-auto pacssd-flex pacssd-justify-between pacssd-items-center">
-          <h1 className="pacssd-text-2xl pacssd-font-bold">PACS Server</h1>
-          <div className="pacssd-user-controls">
-            <button
-              className="pacssd-user-initial-btn"
+        <div className="pacssd-max-w-7xl pacssd-mx-auto pacssd-flex pacssd-items-center">
+          <div className="pacssd-header-left">
+            <button 
+              onClick={onBackToSearch} 
+              className="pacssd-back-button"
               disabled={loading}
             >
-              {getUserInitial()}
+              <ArrowLeft className="pacssd-w-4 pacssd-h-4 pacssd-mr-2" />
+              Back to Search
             </button>
-            <button
-              onClick={handleLogout}
-              className="pacssd-logout-btn"
-              disabled={loading}
-            >
-              <LogOut className="pacssd-w-4 pacssd-h-4 pacssd-mr-2" />
-              Logout
-            </button>
+          </div>
+          <div className="pacssd-header-center">
+            <h1 className="pacssd-text-2xl pacssd-font-bold pacssd-text-white">PACS Server</h1>
+          </div>
+          <div className="pacssd-header-right">
+            <div className="pacssd-user-controls">
+              <button
+                className="pacssd-user-initial-btn"
+                disabled={loading}
+              >
+                {getUserInitial()}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="pacssd-min-h-screen pacssd-bg-gray-100">
-        {showLogoutMessage && (
-          <div className="pacssd-logout-message">
-            You have been logged out successfully
-          </div>
-        )}
-
         <div className="pacssd-pacs-container">
-          <button 
-            onClick={onBackToSearch} 
-            className="pacssd-back-button"
-            disabled={loading}
-          >
-            <ArrowLeft className="pacssd-w-4 pacssd-h-4" />
-            Back to Search
-          </button>
-
           <div className="pacssd-study-details-section pacssd-fade-in">
             <div className="pacssd-search-header">
               <FileText size={28} />
               <h2>Study Details</h2>
             </div>
 
-            {study ? ( // Conditional rendering to prevent null access
+            {study ? (
               <div className="pacssd-study-info-grid">
                 <div className="pacssd-info-section">
                   <h3>
@@ -344,7 +290,7 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
             </div>
           </div>
 
-          {study && ( // Conditional rendering for series grid
+          {study && (
             <div className="pacssd-results-section pacssd-scale-in">
               <div className="pacssd-results-header">
                 <h3>
@@ -356,16 +302,16 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
               <div className="pacssd-series-grid">
                 {study.series.map((series) => (
                   <div 
-                    key={series.id} 
-                    className={`pacssd-series-card ${selectedSeries?.id === series.id ? 'pacssd-selected' : ''}`}
+                    key={series._id} // Changed from series.id to series._id to match PACSSearchResults structure
+                    className={`pacssd-series-card ${selectedSeries?._id === series._id ? 'pacssd-selected' : ''}`}
                   >
                     <div className="pacssd-series-header">
-                      <h4 className="pacssd-series-number">Series {series.seriesNumber}</h4>
+                      <h4 className="pacssd-series-number">Series {series.seriesNumber || 'N/A'}</h4>
                       <span className="pacssd-series-modality">{series.modality}</span>
                     </div>
 
-                    <div className="pacssd-series-description">{series.seriesDescription}</div>
-                    <div className="pacssd-series-meta">{series.numberOfInstances} images</div>
+                    <div className="pacssd-series-description">{series.seriesDescription || 'No Description'}</div>
+                    <div className="pacssd-series-meta">{series.instances?.length || 0} images</div>
 
                     <div className="pacssd-series-actions">
                       <button 
@@ -401,8 +347,8 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries, onLogou
 
           {selectedSeries && (
             <div className="pacssd-selected-series-info pacssd-fade-in">
-              <h4>Selected Series: {selectedSeries.seriesDescription}</h4>
-              <p>Series {selectedSeries.seriesNumber} - {selectedSeries.numberOfInstances} images</p>
+              <h4>Selected Series: {selectedSeries.seriesDescription || 'No Description'}</h4>
+              <p>Series {selectedSeries.seriesNumber || 'N/A'} - {selectedSeries.instances?.length || 0} images</p>
             </div>
           )}
 

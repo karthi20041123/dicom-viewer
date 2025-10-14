@@ -18,9 +18,21 @@ import CinePlayer from "./tools/CinePlayer";
 import PanelControls from "./tools/PanelControls";
 import LayoutControls from "./tools/LayoutControls";
 import Segmentation from "./tools/Segmentation";
-import MultiplanarReconstruction from "./tools/MultiplanarReconstruction";
 import SharedView from "./tools/SharedView";
 import "./styles/Toolbar.css";
+import PanToolIcon from '@mui/icons-material/PanTool';
+import ZoomInIcon from '@mui/icons-material/ZoomIn';
+import RotateRightIcon from '@mui/icons-material/RotateRight';
+import ExposureIcon from '@mui/icons-material/Exposure';
+import StraightenIcon from '@mui/icons-material/Straighten';
+import SearchIcon from '@mui/icons-material/Search';
+import BrushIcon from '@mui/icons-material/Brush';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import DownloadIcon from '@mui/icons-material/Download';
+import ShareIcon from '@mui/icons-material/Share';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
+import FormatListNumberedIcon from '@mui/icons-material/FormatListNumbered';
 
 const Toolbar = ({
   activeTool,
@@ -33,10 +45,11 @@ const Toolbar = ({
   setIsPlaying,
   currentLayout,
   onLayoutChange,
+  mprMode,
+  setMprMode,
 }) => {
   const [showMeasurement, setShowMeasurement] = useState(false);
   const [showSegmentation, setShowSegmentation] = useState(false);
-  const [showMPR, setShowMPR] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
   const [mprAnchorEl, setMprAnchorEl] = useState(null);
@@ -64,12 +77,8 @@ const Toolbar = ({
     }
   };
 
-  const handleMPRToggle = () => {
-    setShowMPR((prev) => !prev);
-  };
-
   const handleMPRModeSelect = (mode) => {
-    setShowMPR(true);
+    setMprMode(mode);
     setMprAnchorEl(null);
   };
 
@@ -164,12 +173,13 @@ const Toolbar = ({
             onClick={(e) => setMprAnchorEl(e.currentTarget)}
             disabled={isPlaying || !isImageLoaded}
             className="mpr-button"
+            startIcon={<FormatListNumberedIcon />}
             style={{
-              background: showMPR ? '#4caf50' : '#1976d2',
-              color: 'white'
+              background: mprMode ? '#4caf50' : '#1a237e',
+              color: 'white',
             }}
           >
-            MPR {showMPR ? "ON" : "OFF"}
+            MPR
           </Button>
 
           <WindowLevelControls viewerRef={viewerRef} disabled={isPlaying} />
@@ -180,6 +190,7 @@ const Toolbar = ({
             activeTool={activeTool}
             handleToolChange={handleToolChange}
             disabled={isPlaying}
+            startIcon={<PanToolIcon />}
           />
           <ZoomControls
             viewerRef={viewerRef}
@@ -188,6 +199,7 @@ const Toolbar = ({
             activeTool={activeTool}
             handleToolChange={handleToolChange}
             disabled={isPlaying}
+            startIcon={<ZoomInIcon />}
           />
           <RotateMenu
             viewerRef={viewerRef}
@@ -196,6 +208,7 @@ const Toolbar = ({
             activeTool={activeTool}
             handleToolChange={handleToolChange}
             disabled={isPlaying}
+            startIcon={<RotateRightIcon />}
           />
           <Magnifier viewerRef={viewerRef} isActive={isMagnifierActive} disabled={isPlaying} />
           <Button
@@ -203,24 +216,40 @@ const Toolbar = ({
             onClick={() => setIsMagnifierActive((prev) => !prev)}
             disabled={isPlaying}
             className="magnifier-button"
+            startIcon={<SearchIcon />}
+            style={{
+              background: isMagnifierActive ? '#4caf50' : '#1a237e',
+              color: 'white',
+            }}
           >
-            Magnifier {isMagnifierActive ? "ON" : "OFF"}
+            Magnifier
           </Button>
           <Button
             variant="contained"
             onClick={handleSegmentationToggle}
             disabled={isPlaying}
             className="segmentation-button"
+            startIcon={<BrushIcon />}
+            style={{
+              background: showSegmentation ? '#4caf50' : '#1a237e',
+              color: 'white',
+            }}
           >
-            Segmentation {showSegmentation ? "ON" : "OFF"}
+            Segmentation
           </Button>
-          <Button onClick={handleReset} disabled={isPlaying} className="reset-button">
+          <Button
+            onClick={handleReset}
+            disabled={isPlaying}
+            className="reset-button"
+            startIcon={<RestartAltIcon />}
+          >
             Reset
           </Button>
           <Button
             onClick={(e) => setExportAnchorEl(e.currentTarget)}
             disabled={isPlaying}
             className="export-button"
+            startIcon={<DownloadIcon />}
           >
             Export
           </Button>
@@ -229,7 +258,11 @@ const Toolbar = ({
             onClick={handleShareToggle}
             disabled={isPlaying || !isImageLoaded}
             className="share-button"
-            style={{ background: showShareDialog ? '#4caf50' : '#1976d2', color: 'white' }}
+            startIcon={<ShareIcon />}
+            style={{
+              background: showShareDialog ? '#4caf50' : '#1a237e',
+              color: 'white',
+            }}
           >
             Share Study
           </Button>
@@ -238,14 +271,17 @@ const Toolbar = ({
             files={files}
             isPlaying={isPlaying}
             setIsPlaying={setIsPlaying}
+            startIcon={<PlayArrowIcon />}
           />
           <PanelControls 
             onLayoutChange={onLayoutChange} 
             currentLayout={currentLayout}
+            startIcon={<ViewModuleIcon />}
           />
           <LayoutControls 
             onLayoutChange={onLayoutChange} 
             currentLayout={currentLayout}
+            startIcon={<ViewModuleIcon />}
           />
         </ButtonGroup>
 
@@ -281,28 +317,9 @@ const Toolbar = ({
             MIST Oblique
             <span style={{ marginLeft: 'auto', fontSize: '0.8em', color: '#666' }}>Shift + Q</span>
           </MenuItem>
-          <MenuItem onClick={() => handleMPRModeSelect("mist_axial")} disabled={isPlaying}>
-            <span style={{ marginRight: 8 }}>⭐</span>
-            MIST Axial
-            <span style={{ marginLeft: 'auto', fontSize: '0.8em', color: '#666' }}>Shift + 1</span>
-          </MenuItem>
-          <MenuItem onClick={() => handleMPRModeSelect("mist_coronal")} disabled={isPlaying}>
-            <span style={{ marginRight: 8 }}>✨</span>
-            MIST Coronal
-            <span style={{ marginLeft: 'auto', fontSize: '0.8em', color: '#666' }}>Shift + O</span>
-          </MenuItem>
-          <MenuItem onClick={() => handleMPRModeSelect("mist_sagittal")} disabled={isPlaying}>
-            <span style={{ marginRight: 8 }}>💫</span>
-            MIST Sagittal
-            <span style={{ marginLeft: 'auto', fontSize: '0.8em', color: '#666' }}>Shift + P</span>
-          </MenuItem>
-          <MenuItem onClick={() => handleMPRModeSelect("mist_advanced_pet")} disabled={isPlaying}>
-            <span style={{ marginRight: 8 }}>🔬</span>
-            MIST Advanced PET
-          </MenuItem>
-          <MenuItem onClick={() => handleMPRModeSelect("dental")} disabled={isPlaying}>
-            <span style={{ marginRight: 8 }}>🦦</span>
-            Dental MPR
+          <MenuItem onClick={() => handleMPRModeSelect(null)} disabled={isPlaying || !mprMode}>
+            <span style={{ marginRight: 8 }}>❌</span>
+            Close MPR
           </MenuItem>
         </Menu>
 
@@ -331,17 +348,6 @@ const Toolbar = ({
           files={files}
           isImageLoaded={isImageLoaded}
           onClose={() => setShowShareDialog(false)}
-          disabled={isPlaying}
-        />
-      )}
-
-      {showMPR && (
-        <MultiplanarReconstruction
-          viewerRef={viewerRef}
-          files={files}
-          isElementEnabled={isElementEnabled}
-          isImageLoaded={isImageLoaded}
-          onClose={() => setShowMPR(false)}
           disabled={isPlaying}
         />
       )}

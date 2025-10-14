@@ -1,3 +1,4 @@
+/* Toolbar container styles */
 .toolbar-container {
   display: flex;
   justify-content: center;
@@ -6,80 +7,140 @@
   background-color: #ffffff; /* White background for container */
 }
 
+/* Button group styles */
 .toolbar-button-group {
   margin-bottom: 5px;
-  gap: 18px;
-  border-radius: 8px;
+  gap: 15px;
   padding: 5px;
-  background-color: #ffffff; /* White background for button group */
-  box-shadow: 0 2px 4px rgba(0, 31, 63, 0.1); /* Subtle navy blue shadow */
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
+/* General button styles */
 .toolbar-button-group .MuiButton-root {
-  width: 126px;
-  border-radius: 8px;
-  background-color: #001f3f; /* Navy blue button background */
+  width: 120px;
+  height: 35px;
+  background: #1a237e; /* Deep indigo background */
   color: #ffffff; /* White text */
   font-family: LemonMilk, sans-serif;
-  font-size: 14px;
+  font-size: 10px;
   text-transform: none;
   text-align: center;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px; /* Adjusted padding for content alignment */
+  /* gap: 4px; Space between icon and text */
 }
 
+/* Button hover styles */
 .toolbar-button-group .MuiButton-root:hover {
-  background-color: #003366; /* Slightly lighter navy blue for hover */
+  background: #0d113f; /* Darker indigo on hover */
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(13, 17, 63, 0.3); /* Adjusted shadow color */
 }
 
+/* Start icon alignment */
+.toolbar-button-group .MuiButton-root .MuiButton-startIcon {
+  margin-right: 6px;
+  margin-left: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* MPR button styles */
+.mpr-button {
+  color: #ffffff;
+  background: #1a237e; /* Deep indigo background */
+}
+
+/* MPR button hover */
+.mpr-button:hover {
+  background: #0d113f; /* Darker indigo on hover */
+}
+
+/* Magnifier button styles */
 .magnifier-button {
-  color: #ffffff; /* White text */
-  background-color: #001f3f; /* Navy blue background */
+  color: #ffffff;
+  background: #1a237e; /* Deep indigo background */
 }
 
+/* Magnifier button hover */
 .magnifier-button:hover {
-  background-color: #003366; /* Lighter navy blue for hover */
+  background: #0d113f; /* Darker indigo on hover */
 }
 
+/* Segmentation button styles */
 .segmentation-button {
-  color: #ffffff; /* White text */
-  background-color: #001f3f; /* Navy blue background */
+  color: #ffffff;
+  background: #1a237e; /* Deep indigo background */
 }
 
+/* Segmentation button hover */
 .segmentation-button:hover {
-  background-color: #003366; /* Lighter navy blue for hover */
+  background: #0d113f; /* Darker indigo on hover */
 }
 
+/* Reset button styles */
 .reset-button {
-  color: #ffffff; /* White text */
-  background-color: #001f3f; /* Navy blue background */
+  color: #ffffff;
+  background: #1a237e; /* Deep indigo background */
 }
 
+/* Reset button hover */
 .reset-button:hover {
-  background-color: #003366; /* Lighter navy blue for hover */
+  background: #0d113f; /* Darker indigo on hover */
 }
 
+/* Export button styles */
 .export-button {
-  color: #ffffff; /* White text */
-  background-color: #001f3f; /* Navy blue background */
+  color: #ffffff;
+  background: #1a237e; /* Deep indigo background */
 }
 
+/* Export button hover */
 .export-button:hover {
-  background-color: #003366; /* Lighter navy blue for hover */
+  background: #0d113f; /* Darker indigo on hover */
 }
 
+/* Share button styles */
+.share-button {
+  color: #ffffff;
+  background: #1a237e; /* Deep indigo background */
+}
+
+/* Share button hover */
+.share-button:hover {
+  background: #0d113f; /* Darker indigo on hover */
+}
+
+/* Export menu styles */
 .export-menu .MuiPaper-root {
   background-color: #ffffff; /* White background for menu */
   color: #001f3f; /* Navy blue text */
-  box-shadow: 0 2px 4px rgba(0, 31, 63, 0.2); /* Navy blue shadow */
+  box-shadow: 0 4px 12px rgba(0, 31, 63, 0.2); /* Enhanced navy blue shadow */
+  border-radius: 8px;
 }
 
+/* Export menu item styles */
 .export-menu .MuiMenuItem-root {
   color: #001f3f; /* Navy blue text */
+  font-family: LemonMilk, sans-serif;
+  font-size: 14px;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
 }
 
+/* Export menu item hover */
 .export-menu .MuiMenuItem-root:hover {
   background-color: #f5f7fa; /* Light gray-blue for hover */
 }
 
+/* Measurement container styles */
 .measurement-container {
   position: relative;
   top: -20px;
@@ -89,12 +150,13 @@
   background-color: #ffffff; /* White background */
   padding: 10px;
   border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 31, 63, 0.2); /* Navy blue shadow */
+  box-shadow: 0 4px 12px rgba(0, 31, 63, 0.2); /* Enhanced navy blue shadow */
   z-index: 10;
   pointer-events: auto;
   color: #001f3f; /* Navy blue text */
 }
 
+/* Disabled measurement container */
 .measurement-container[style*="pointer-events: none"] {
   pointer-events: none;
 }

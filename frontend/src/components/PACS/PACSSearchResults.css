@@ -2,72 +2,19 @@
 @import url('https://fonts.cdnfonts.com/css/multicolore');
 @import url('https://fonts.googleapis.com/css2?family=Folks&display=swap');
 
-/* Define CSS variables for themes */
-:root {
-  --bg-color: #f8f9fa;
-  --text-color: #333333;
-  --container-bg: #ffffff;
-  --header-bg: #1a237e;
-  --header-text: #ffffff;
-  --button-bg: #1a237e;
-  --button-hover: #0d1435;
-  --secondary-button-bg: #6c757d;
-  --secondary-button-hover: #5a6268;
-  --progress-bg: #e9ecef;
-  --progress-fill: #28a745;
-  --success-bg: #d4edda;
-  --success-text: #155724;
-  --error-bg: #f8d7da;
-  --error-text: #721c24;
-  --border-color: #dee2e6;
-  --shadow-color: rgba(0, 0, 0, 0.1);
-  --input-bg: #ffffff;
-  --input-border: #dee2e6;
-  --table-hover-bg: #f1f3f5;
-  --icon-bg: rgba(255, 255, 255, 0.1);
-  --badge-bg: #1a237e;
-}
-
 body {
   font-family: 'Andika', sans-serif;
   margin: 0;
   padding: 0;
-  background-color: var(--bg-color);
-  color: var(--text-color);
-  transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-/* Dark Mode */
-body.dark-mode {
-  --bg-color: #1e1e1e;
-  --text-color: #e0e0e0;
-  --container-bg: #2c2c2c;
-  --header-bg: #0d1435;
-  --header-text: #e0e0e0;
-  --button-bg: #0d1435;
-  --button-hover: #1a237e;
-  --secondary-button-bg: #4a4e57;
-  --secondary-button-hover: #3d4046;
-  --progress-bg: #333333;
-  --progress-fill: #28a745;
-  --success-bg: #1a3e1a;
-  --success-text: #c3e6cb;
-  --error-bg: #421c1c;
-  --error-text: #f5c6cb;
-  --border-color: #444444;
-  --shadow-color: rgba(0, 0, 0, 0.3);
-  --input-bg: #2c2c2c;
-  --input-border: #555555;
-  --table-hover-bg: #3a3a3a;
-  --icon-bg: rgba(255, 255, 255, 0.2);
-  --badge-bg: #0d1435;
+  background-color: #f8f9fa;
+  color: #333333;
 }
 
 /* Use Multicolore for all headings */
 h1, h2, h3, h4 {
   font-family: 'Multicolore', sans-serif;
   margin: 0;
-  color: var(--text-color);
+  color: #333333;
 }
 
 /* Use Folks for all buttons */
@@ -83,21 +30,22 @@ button {
   margin: 0 auto;
   padding: 15px;
   width: 100%;
-  background-color: var(--container-bg);
+  background-color: #ffffff;
   border-radius: 10px;
-  box-shadow: 0 4px 8px var(--shadow-color);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .pacsrs-header {
-  background-color: var(--header-bg);
+  background-color: #1a237e;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 30px;
+  padding: 15px 30px;
 }
 
 .pacsrs-title {
-  color: var(--header-text);
+  color: #ffffff;
+  margin-left: -100px;
   font-size: 2.5rem;
   text-align: center;
   flex-grow: 1;
@@ -108,22 +56,9 @@ button {
   gap: 10px;
 }
 
-.pacsrs-sample-dicom-btn {
-  background-color: #6c757d;
-  color: var(--header-text);
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.pacsrs-sample-dicom-btn:hover {
-  background-color: #5a6268;
-}
-
 .pacsrs-add-study-btn {
-  background-color: #1a237e;
-  color: var(--header-text);
+  background-color: #0056b3;
+  color: #ffffff;
   border: none;
   padding: 8px 16px;
   border-radius: 4px;
@@ -135,7 +70,7 @@ button {
 }
 
 .pacsrs-add-study-btn:hover {
-  background-color: #0d1435;
+  background-color: #004d99;
 }
 
 .pacsrs-header-icons {
@@ -144,8 +79,8 @@ button {
   gap: 10px;
 }
 
-.pacsrs-theme-toggle-btn, .pacsrs-login-btn, .pacsrs-user-initial-btn {
-  color: var(--header-text);
+.pacsrs-login-btn, .pacsrs-user-initial-btn {
+  color: #ffffff;
   text-decoration: none;
   display: flex;
   align-items: center;
@@ -153,11 +88,11 @@ button {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background-color: var(--icon-bg);
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 .pacsrs-user-initial-btn {
-  background-color: var(--progress-fill);
+  background-color: #28a745;
   font-size: 18px;
   font-weight: bold;
 }
@@ -169,18 +104,18 @@ button {
 .pacsrs-upload-progress {
   margin: 20px 0;
   text-align: center;
-  color: var(--text-color);
+  color: #333333;
 }
 
 .pacsrs-progress-bar {
-  background-color: var(--progress-bg);
+  background-color: #e9ecef;
   border-radius: 4px;
   height: 20px;
   overflow: hidden;
 }
 
 .pacsrs-progress-fill {
-  background-color: var(--progress-fill);
+  background-color: #28a745;
   height: 100%;
   transition: width 0.3s ease;
 }
@@ -190,18 +125,18 @@ button {
   margin: 10px 0;
   border-radius: 4px;
   text-align: center;
-  background-color: var(--success-bg);
-  color: var(--success-text);
+  background-color: #d4edda;
+  color: #155724;
 }
 
 .pacsrs-message-banner.success {
-  background-color: var(--success-bg);
-  color: var(--success-text);
+  background-color: #d4edda;
+  color: #155724;
 }
 
 .pacsrs-message-banner.error {
-  background-color: var(--error-bg);
-  color: var(--error-text);
+  background-color: #f8d7da;
+  color: #721c24;
 }
 
 .pacsrs-upload-dicom-container {
@@ -210,8 +145,8 @@ button {
 }
 
 .pacsrs-upload-dicom-btn {
-  background-color: var(--button-bg);
-  color: var(--header-text);
+  background-color: #1a237e;
+  color: #ffffff;
   border: none;
   padding: 10px 20px;
   border-radius: 50px;
@@ -222,7 +157,7 @@ button {
 }
 
 .pacsrs-upload-dicom-btn:hover {
-  background-color: var(--button-hover);
+  background-color: #0d1435;
 }
 
 .pacsrs-upload-dicom-btn:disabled {
@@ -231,9 +166,9 @@ button {
 }
 
 .pacsrs-search-container {
-  background-color: var(--container-bg);
+  background-color: #ffffff;
   border-radius: 8px;
-  box-shadow: 0 2px 4px var(--shadow-color);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   padding: 20px;
   margin-bottom: 30px;
 }
@@ -246,11 +181,11 @@ button {
 }
 
 .pacsrs-search-icon {
-  color: var(--header-bg);
+  color: #1a237e;
 }
 
 .pacsrs-search-title {
-  color: var(--header-bg);
+  color: #1a237e;
   font-size: 20px;
   font-weight: bold;
 }
@@ -269,17 +204,17 @@ button {
 
 .pacsrs-field-label {
   font-size: 14px;
-  color: var(--text-color);
+  color: #333333;
   margin-bottom: 5px;
 }
 
 .pacsrs-text-input {
   padding: 8px;
-  border: 1px solid var(--input-border);
+  border: 1px solid #dee2e6;
   border-radius: 4px;
   font-size: 14px;
-  background-color: var(--input-bg);
-  color: var(--text-color);
+  background-color: #ffffff;
+  color: #333333;
 }
 
 .pacsrs-search-buttons {
@@ -289,8 +224,8 @@ button {
 }
 
 .pacsrs-search-btn, .pacsrs-clear-btn {
-  background-color: var(--button-bg);
-  color: var(--header-text);
+  background-color: #1a237e;
+  color: #ffffff;
   border: none;
   padding: 8px 16px;
   border-radius: 4px;
@@ -300,15 +235,15 @@ button {
 }
 
 .pacsrs-clear-btn {
-  background-color: var(--secondary-button-bg);
+  background-color: #1a237e;
 }
 
 .pacsrs-search-btn:hover {
-  background-color: var(--button-hover);
+  background-color: #0d1435;
 }
 
 .pacsrs-clear-btn:hover {
-  background-color: var(--secondary-button-hover);
+  background-color: #0d1435;
 }
 
 .pacsrs-search-btn:disabled {
@@ -317,9 +252,9 @@ button {
 }
 
 .pacsrs-results-container {
-  background-color: var(--container-bg);
+  background-color: #ffffff;
   border-radius: 8px;
-  box-shadow: 0 2px 4px var(--shadow-color);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   padding: 20px;
 }
 
@@ -330,28 +265,28 @@ button {
 }
 
 .pacsrs-results-title {
-  color: var(--header-bg);
+  color: #1a237e;
   font-size: 18px;
 }
 
 .pacsrs-results-count {
-  background-color: var(--progress-bg);
+  background-color: #e9ecef;
   padding: 4px 8px;
   border-radius: 12px;
   font-size: 14px;
   margin-left: 10px;
-  color: var(--text-color);
+  color: #333333;
 }
 
 .pacsrs-login-prompt {
   text-align: center;
   padding: 20px;
-  color: var(--text-color);
+  color: #333333;
 }
 
 .pacsrs-login-prompt-btn {
-  background-color: var(--button-bg);
-  color: var(--header-text);
+  background-color: #1a237e;
+  color: #ffffff;
   border: none;
   padding: 8px 16px;
   border-radius: 4px;
@@ -362,7 +297,7 @@ button {
 }
 
 .pacsrs-login-prompt-btn:hover {
-  background-color: var(--button-hover);
+  background-color: #0d1435;
 }
 
 .pacsrs-results-table {
@@ -371,22 +306,22 @@ button {
 }
 
 .pacsrs-table-header {
-  background-color: var(--header-bg);
-  color: var(--header-text);
+  background-color: #1a237e;
+  color: #ffffff;
   font-size: 14px;
   padding: 10px;
   text-align: left;
 }
 
 .pacsrs-table-row:hover {
-  background-color: var(--table-hover-bg);
+  background-color: #f1f3f5;
 }
 
 .pacsrs-table-cell {
   padding: 10px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid #dee2e6;
   font-size: 14px;
-  color: var(--text-color);
+  color: #333333;
 }
 
 .pacsrs-patient-info {
@@ -396,17 +331,17 @@ button {
 
 .pacsrs-patient-name {
   font-weight: bold;
-  color: var(--text-color);
+  color: #333333;
 }
 
 .pacsrs-patient-id {
-  color: var(--secondary-button-bg);
+  color: #1a237e;
   font-size: 12px;
 }
 
 .pacsrs-modality-badge {
-  background-color: var(--badge-bg);
-  color: var(--header-text);
+  background-color: #1a237e;
+  color: #ffffff;
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
@@ -418,7 +353,7 @@ button {
 }
 
 .pacsrs-action-btn {
-  color: var(--header-text);
+  color: #ffffff;
   text-decoration: none;
   padding: 6px 12px;
   border-radius: 4px;
@@ -428,15 +363,15 @@ button {
 }
 
 .pacsrs-view-btn {
-  background-color: var(--header-bg);
+  background-color: #1a237e;
 }
 
 .pacsrs-export-btn {
-  background-color: var(--progress-fill);
+  background-color: #28a745;
 }
 
 .pacsrs-view-btn:hover {
-  background-color: var(--button-hover);
+  background-color: #0d1435;
 }
 
 .pacsrs-export-btn:hover {

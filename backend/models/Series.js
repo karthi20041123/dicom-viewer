@@ -1,18 +1,70 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
 
-const seriesSchema = new mongoose.Schema({
-  study: { type: mongoose.Schema.Types.ObjectId, ref: 'Study', required: true },
-  seriesInstanceUID: { type: String, required: true, unique: true },
-  seriesNumber: Number,
-  seriesDate: Date,
-  seriesTime: String,
-  seriesDescription: String,
-  modality: String,
-  bodyPartExamined: String,
-  numberOfInstances: { type: Number, default: 0 },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
+export default (sequelize) => {
+  const Series = sequelize.define('Series', {
+    id: {
+      type: DataTypes.BIGINT,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    studyId: {
+      type: DataTypes.BIGINT,
+      allowNull: false,
+      references: { model: 'studies', key: 'id' },
+    },
+    seriesInstanceUID: {
+      type: DataTypes.STRING(255),
+      allowNull: false,
+      unique: true,
+    },
+    seriesNumber: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    seriesDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+    seriesTime: {
+      type: DataTypes.TIME,
+      allowNull: true,
+    },
+    seriesDescription: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    modality: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    bodyPartExamined: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    numberOfInstances: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
+    createdAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+  }, {
+    tableName: 'series',
+    indexes: [
+      { fields: ['seriesInstanceUID'] },
+    ],
+  });
 
-const Series = mongoose.models.Series || mongoose.model("Series", seriesSchema);
-export default Series;
+  Series.associate = (models) => {
+    Series.belongsTo(models.Study, { foreignKey: 'studyId', as: 'Study' });
+    Series.hasMany(models.Instance, { foreignKey: 'seriesId', as: 'Instances' });
+    Series.hasMany(models.DicomFile, { foreignKey: 'seriesId', as: 'DicomFiles' });
+  };
+
+  return Series;
+};

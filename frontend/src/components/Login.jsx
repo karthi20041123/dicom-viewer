@@ -85,7 +85,7 @@ const LoginForm = ({ onClose, onSignupClick, onLoginSuccess }) => {
         data = await response.json();
       } else {
         const textResponse = await response.text();
-        console.log("Non-JSON response:", textResponse);
+        console.error("Non-JSON response:", textResponse);
         throw new Error("Server returned non-JSON response");
       }
 
@@ -111,15 +111,13 @@ const LoginForm = ({ onClose, onSignupClick, onLoginSuccess }) => {
           sessionStorage.removeItem("user");
 
           // Store based on remember option
-          if (rememberOption === "session") {
-            sessionStorage.setItem("authToken", data.token);
-            sessionStorage.setItem("user", JSON.stringify(data.user));
-          } else if (rememberOption === "7days" || rememberOption === "30days") {
-            localStorage.setItem("authToken", data.token);
-            localStorage.setItem("user", JSON.stringify(data.user));
-            // Store expiration timestamp
+          const storage = rememberOption === "session" ? sessionStorage : localStorage;
+          storage.setItem("authToken", data.token);
+          storage.setItem("user", JSON.stringify(data.user));
+
+          if (rememberOption !== "session") {
             const expiresIn = rememberOption === "7days" ? 7 * 24 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000;
-            localStorage.setItem("tokenExpires", Date.now() + expiresIn);
+            storage.setItem("tokenExpires", Date.now() + expiresIn);
           }
         }
 
@@ -135,7 +133,8 @@ const LoginForm = ({ onClose, onSignupClick, onLoginSuccess }) => {
           });
 
           if (!notifyResponse.ok) {
-            console.warn("Failed to send login notification:", notifyResponse.status);
+            const notifyData = await notifyResponse.json();
+            console.warn("Failed to send login notification:", notifyData.message || notifyResponse.status);
             setMessage({
               type: "warning",
               text: "Login successful, but failed to send notification emails.",
@@ -158,8 +157,9 @@ const LoginForm = ({ onClose, onSignupClick, onLoginSuccess }) => {
             onClose();
           }
           if (typeof onLoginSuccess === "function") {
-            onLoginSuccess();
+            onLoginSuccess(data.user);
           }
+          // Removed navigate("/dashboard") to stay on current page
         }, 700);
       } else {
         let errorMessage = "Login failed. Please try again.";
@@ -172,7 +172,7 @@ const LoginForm = ({ onClose, onSignupClick, onLoginSuccess }) => {
           errorMessage = "Server error. Please try again later.";
         }
 
-        console.log("Login failed:", errorMessage);
+        console.error("Login failed:", errorMessage);
         setMessage({ type: "error", text: errorMessage });
 
         if (Array.isArray(data?.errors)) {
@@ -180,7 +180,7 @@ const LoginForm = ({ onClose, onSignupClick, onLoginSuccess }) => {
           data.errors.forEach((err) => {
             if (err.path) backendErrors[err.path] = err.msg;
           });
-          setErrors(backendErrors);
+          setErrors((prev) => ({ ...prev, ...backendErrors }));
         }
       }
     } catch (error) {

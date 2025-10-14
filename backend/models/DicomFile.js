@@ -1,83 +1,173 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
 
-const dicomFileSchema = new mongoose.Schema({
-  patient: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true },
-  study: { type: mongoose.Schema.Types.ObjectId, ref: 'Study', required: true },
-  series: { type: mongoose.Schema.Types.ObjectId, ref: 'Series', required: true },
-  
-  // DICOM identifiers
-  sopInstanceUID: { type: String, required: true, unique: true },
-  sopClassUID: String,
-  transferSyntaxUID: String,
-  
-  // File information
-  filename: String,
-  originalFilename: String,
-  filePath: { type: String, required: true },
-  fileSize: Number,
-  
-  // Image properties
-  instanceNumber: Number,
-  imageType: [String],
-  photometricInterpretation: String,
-  rows: Number,
-  columns: Number,
-  bitsAllocated: Number,
-  bitsStored: Number,
-  highBit: Number,
-  pixelRepresentation: Number,
-  samplesPerPixel: Number,
-  
-  // Clinical data
-  imageDate: Date,
-  imageTime: String,
-  acquisitionDate: Date,
-  acquisitionTime: String,
-  
-  // Window/Level
-  windowCenter: [Number],
-  windowWidth: [Number],
-  
-  // Spatial information
-  pixelSpacing: [Number],
-  sliceThickness: Number,
-  sliceLocation: Number,
-  imagePosition: [Number],
-  imageOrientation: [Number],
-  
-  // Processing status
-  processingStatus: {
-    type: String,
-    enum: ['pending', 'processing', 'completed', 'failed'],
-    default: 'pending'
-  },
-  
-  // Metadata
-  metadata: mongoose.Schema.Types.Mixed,
-  
-  // Annotations
-  annotations: [{
-    type: {
-      type: String,
-      enum: ['measurement', 'arrow', 'text', 'circle', 'rectangle'],
-      required: true
+export default (sequelize) => {
+  const DicomFile = sequelize.define('DicomFile', {
+    id: {
+      type: DataTypes.BIGINT,
+      autoIncrement: true,
+      primaryKey: true,
     },
-    coordinates: mongoose.Schema.Types.Mixed,
-    properties: mongoose.Schema.Types.Mixed,
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    createdAt: { type: Date, default: Date.now }
-  }],
-  
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
+    patientId: {
+      type: DataTypes.BIGINT,
+      allowNull: false,
+      references: { model: 'patients', key: 'id' },
+    },
+    studyId: {
+      type: DataTypes.BIGINT,
+      allowNull: false,
+      references: { model: 'studies', key: 'id' },
+    },
+    seriesId: {
+      type: DataTypes.BIGINT,
+      allowNull: false,
+      references: { model: 'series', key: 'id' },
+    },
+    sopInstanceUID: {
+      type: DataTypes.STRING(255),
+      allowNull: false,
+      unique: true,
+    },
+    sopClassUID: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    transferSyntaxUID: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    filename: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    originalFilename: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    filePath: {
+      type: DataTypes.STRING(255),
+      allowNull: false,
+    },
+    fileSize: {
+      type: DataTypes.BIGINT,
+      allowNull: true,
+    },
+    instanceNumber: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    imageType: {
+      type: DataTypes.JSON,
+      allowNull: true,
+    },
+    photometricInterpretation: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    rows: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    columns: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    bitsAllocated: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    bitsStored: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    highBit: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    pixelRepresentation: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    samplesPerPixel: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    imageDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+    imageTime: {
+      type: DataTypes.TIME,
+      allowNull: true,
+    },
+    acquisitionDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+    acquisitionTime: {
+      type: DataTypes.TIME,
+      allowNull: true,
+    },
+    windowCenter: {
+      type: DataTypes.JSON,
+      allowNull: true,
+    },
+    windowWidth: {
+      type: DataTypes.JSON,
+      allowNull: true,
+    },
+    pixelSpacing: {
+      type: DataTypes.JSON,
+      allowNull: true,
+    },
+    sliceThickness: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+    },
+    sliceLocation: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+    },
+    imagePosition: {
+      type: DataTypes.JSON,
+      allowNull: true,
+    },
+    imageOrientation: {
+      type: DataTypes.JSON,
+      allowNull: true,
+    },
+    processingStatus: {
+      type: DataTypes.ENUM('pending', 'processing', 'completed', 'failed'),
+      defaultValue: 'pending',
+    },
+    metadata: {
+      type: DataTypes.JSON,
+      allowNull: true,
+    },
+    createdAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+  }, {
+    tableName: 'dicom_files',
+    indexes: [
+      { fields: ['sopInstanceUID'] },
+      { fields: ['patientId', 'studyId', 'seriesId'] },
+      { fields: ['instanceNumber'] },
+      { fields: ['imageDate'] },
+      { fields: ['processingStatus'] },
+    ],
+  });
 
-// Indexes for better query performance
-dicomFileSchema.index({ sopInstanceUID: 1 });
-dicomFileSchema.index({ patient: 1, study: 1, series: 1 });
-dicomFileSchema.index({ instanceNumber: 1 });
-dicomFileSchema.index({ imageDate: 1 });
-dicomFileSchema.index({ processingStatus: 1 });
+  DicomFile.associate = (models) => {
+    DicomFile.belongsTo(models.Patient, { foreignKey: 'patientId', as: 'Patient' });
+    DicomFile.belongsTo(models.Study, { foreignKey: 'studyId', as: 'Study' });
+    DicomFile.belongsTo(models.Series, { foreignKey: 'seriesId', as: 'Series' });
+    DicomFile.hasMany(models.Annotation, { foreignKey: 'dicomFileId', as: 'Annotations' });
+  };
 
-const DicomFile = mongoose.models.DicomFile || mongoose.model("DicomFile", dicomFileSchema);
-export default DicomFile;
+  return DicomFile;
+};

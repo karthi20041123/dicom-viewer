@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
+import { useNavigate } from 'react-router-dom';
 import {
   User,
   Upload,
@@ -14,19 +14,20 @@ import {
   MapPin,
   RefreshCw,
 } from 'lucide-react';
+import * as dicomParser from 'dicom-parser';
 import './AddStudyPage.css';
 
-// API base URL
+// API base URL (not used for local storage)
 const API_BASE_URL = 'http://localhost:5000/api';
 
-const AddStudyPage = ({ 
-  onBack, 
-  isLoggedIn: propIsLoggedIn, 
-  existingStudy = null, 
+const AddStudyPage = ({
+  onBack,
+  isLoggedIn,
+  existingStudy = null,
   mode = 'create', // 'create' or 'edit'
-  onStudySaved 
+  onStudySaved,
 }) => {
-  const navigate = useNavigate(); // Initialize useNavigate
+  const navigate = useNavigate();
   const [studyData, setStudyData] = useState({
     patientName: '',
     patientID: '',
@@ -52,74 +53,54 @@ const AddStudyPage = ({
   const [message, setMessage] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadedFileIds, setUploadedFileIds] = useState([]); // Track uploaded DICOM file IDs
+  const [uploadedFileNames, setUploadedFileNames] = useState([]); // Track uploaded file names
+  const [localStudies, setLocalStudies] = useState([]); // Store parsed DICOM studies locally
   const fileInputRef = useRef(null);
-
-  // Use propIsLoggedIn if provided, otherwise check local storage
-  const getAuthToken = () => {
-    return localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
-  };
-
-  const effectiveIsLoggedIn = typeof propIsLoggedIn !== 'undefined' ? propIsLoggedIn : !!getAuthToken();
-
-  const apiRequest = async (endpoint, options = {}) => {
-    const token = getAuthToken();
-    const headers = {
-      ...options.headers,
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    if (options.body && !(options.body instanceof FormData)) {
-      headers['Content-Type'] = 'application/json';
-    }
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 300000);
-
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        ...options,
-        headers,
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (response.status === 401) {
-        throw new Error('Authentication expired. Please log in again.');
-      }
-
-      return response;
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        throw new Error('Request timed out. Please try again.');
-      }
-      throw error;
-    }
-  };
+  const [effectiveIsLoggedIn, setEffectiveIsLoggedIn] = useState(isLoggedIn);
 
   useEffect(() => {
     if (existingStudy && mode === 'edit') {
-      setStudyData(prev => ({
+      setStudyData((prev) => ({
         ...prev,
         patientName: existingStudy.patientName || '',
         patientID: existingStudy.patientID || '',
-        studyDate: existingStudy.studyDate ? new Date(existingStudy.studyDate).toISOString().split('T')[0] : '',
+        studyDate: existingStudy.studyDate
+          ? new Date(existingStudy.studyDate).toISOString().split('T')[0]
+          : '',
         studyTime: existingStudy.studyTime || '',
         studyDescription: existingStudy.studyDescription || '',
         modality: existingStudy.modality || '',
         accessionNumber: existingStudy.accessionNumber || '',
         studyID: existingStudy.studyID || '',
+        patientBirthDate: existingStudy.patientBirthDate || '',
+        patientSex: existingStudy.patientSex || '',
+        patientPhone: existingStudy.patientPhone || '',
+        patientEmail: existingStudy.patientEmail || '',
+        patientAddress: existingStudy.patientAddress || '',
+        bodyPartExamined: existingStudy.bodyPartExamined || '',
+        referringPhysician: existingStudy.referringPhysician || '',
+        studyPriority: existingStudy.studyPriority || 'routine',
+        studyStatus: existingStudy.studyStatus || 'scheduled',
+        comments: existingStudy.comments || '',
       }));
+      setUploadedFileIds(existingStudy.dicomFileIds || []);
+      setUploadedFileNames(existingStudy.uploadedFileNames || []);
+      setLocalStudies(existingStudy.series ? [{ ...existingStudy, series: new Map(existingStudy.series.map(s => [s._id, s])) }] : []);
     }
-  }, [existingStudy, mode]);
+
+    const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+    setEffectiveIsLoggedIn(isLoggedIn || !!token);
+  }, [existingStudy, mode, isLoggedIn]);
+
+  const getAuthToken = () => {
+    return localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+  };
 
   const handleInputChange = (field, value) => {
-    setStudyData(prev => ({
+    setStudyData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
@@ -133,6 +114,29 @@ const AddStudyPage = ({
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const random = Math.random().toString(36).substr(2, 6).toUpperCase();
     return `ACC${date}${random}`;
+  };
+
+  // Helper to convert File to base64
+  const getBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  // Helper to check available localStorage space (approximate)
+  const getLocalStorageSpace = () => {
+    let data = '';
+    try {
+      for (const key in localStorage) {
+        if (localStorage.hasOwnProperty(key)) {
+          data += localStorage[key];
+        }
+      }
+      return data ? 5 * 1024 * 1024 - (encodeURI(data).split(/%..|./).length - 1) : 5 * 1024 * 1024; // Approx 5MB quota
+    } catch (e) {
+      return 0;
+    }
   };
 
   const handleSaveStudy = async () => {
@@ -150,63 +154,159 @@ const AddStudyPage = ({
     setLoading(true);
     try {
       const finalStudyData = {
-        ...studyData,
+        id: studyData.studyID || generateStudyID(),
+        patientName: studyData.patientName,
+        patientID: studyData.patientID,
+        patientBirthDate: studyData.patientBirthDate,
+        patientSex: studyData.patientSex,
+        patientPhone: studyData.patientPhone,
+        patientEmail: studyData.patientEmail,
+        patientAddress: studyData.patientAddress,
         studyID: studyData.studyID || generateStudyID(),
+        studyDate: studyData.studyDate,
+        studyTime: studyData.studyTime,
+        studyDescription: studyData.studyDescription,
+        modality: studyData.modality,
         accessionNumber: studyData.accessionNumber || generateAccessionNumber(),
+        bodyPartExamined: studyData.bodyPartExamined,
+        referringPhysician: studyData.referringPhysician,
+        studyPriority: studyData.studyPriority,
+        studyStatus: studyData.studyStatus,
+        comments: studyData.comments,
+        dicomFileIds: uploadedFileIds,
+        uploadedFileNames,
+        numberOfSeries: localStudies.reduce((sum, study) => sum + (study.series?.size || 0), 0),
+        numberOfImages: localStudies.reduce((sum, study) => sum + Array.from(study.series?.values() || []).reduce((s, series) => s + series.instances.length, 0), 0),
+        series: localStudies.length > 0 ? Array.from(localStudies[0].series.values()) : [],
       };
 
-      const endpoint = mode === 'edit' && existingStudy 
-        ? `/dicom/study/${existingStudy.id}` 
-        : '/dicom/study/create';
-      
-      const method = mode === 'edit' ? 'PUT' : 'POST';
-
-      const response = await apiRequest(endpoint, {
-        method,
-        body: JSON.stringify(finalStudyData),
-      });
-
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
-        setMessage(`Study ${mode === 'edit' ? 'updated' : 'created'} successfully!`);
-        setStudyData(finalStudyData);
-        
-        if (onStudySaved) {
-          onStudySaved(data.study);
-        }
-        
-        setTimeout(() => {
-          setMessage('');
-          if (mode === 'create') {
-            setStudyData({
-              patientName: '',
-              patientID: '',
-              patientBirthDate: '',
-              patientSex: '',
-              patientPhone: '',
-              patientEmail: '',
-              patientAddress: '',
-              studyID: '',
-              studyDate: new Date().toISOString().split('T')[0],
-              studyTime: new Date().toTimeString().split(' ')[0].slice(0, 5),
-              studyDescription: '',
-              modality: '',
-              accessionNumber: '',
-              bodyPartExamined: '',
-              referringPhysician: '',
-              studyPriority: 'routine',
-              studyStatus: 'scheduled',
-              comments: '',
-            });
-          }
-        }, 2000);
-      } else {
-        throw new Error(data.message || 'Failed to save study');
+      // Pass original to callback for in-memory update
+      if (onStudySaved) {
+        onStudySaved(finalStudyData);
       }
+
+      // Estimate size before converting to base64
+      const metadataJSON = JSON.stringify({
+        ...finalStudyData,
+        series: finalStudyData.series.map(ser => ({
+          ...ser,
+          instances: ser.instances.map(inst => ({ ...inst, file: null })) // Exclude files for estimation
+        }))
+      });
+      const estimatedSize = encodeURI(metadataJSON).split(/%..|./).length - 1;
+      const availableSpace = getLocalStorageSpace();
+      if (estimatedSize > availableSpace * 0.9) { // Conservative check
+        setMessage('Insufficient local storage space for metadata alone. Clear some data or upload fewer files.');
+        setTimeout(() => setMessage(''), 5000);
+        return;
+      }
+
+      // Warn user about large files and suggest not persisting binaries
+      const totalInstances = finalStudyData.numberOfImages;
+      if (totalInstances > 50) { // Arbitrary threshold; adjust based on needs
+        const confirmSave = window.confirm(`You have ${totalInstances} images. Storing large DICOM files locally may exceed browser limits (localStorage ~5MB). Save metadata only? (Files will be kept in session but lost on refresh). Click OK for metadata only, Cancel to abort.`);
+        if (!confirmSave) {
+          setMessage('Save aborted.');
+          setTimeout(() => setMessage(''), 3000);
+          return;
+        }
+        // Create savable without binaries
+        const savableStudy = {
+          ...finalStudyData,
+          series: finalStudyData.series.map(ser => ({
+            ...ser,
+            instances: ser.instances.map(inst => ({
+              sopInstanceUID: inst.sopInstanceUID,
+              filename: inst.filename,
+              instanceNumber: inst.instanceNumber,
+              // Omit file and fileBase64
+            }))
+          })),
+          _note: 'Binaries omitted due to size. Files available in current session only.'
+        };
+
+        // Store metadata-only version
+        const existingLocalStudies = JSON.parse(localStorage.getItem('localStudies') || '[]');
+        if (mode === 'edit' && existingStudy) {
+          const updatedStudies = existingLocalStudies.map(s => s.id === existingStudy.id ? savableStudy : s);
+          localStorage.setItem('localStudies', JSON.stringify(updatedStudies));
+          setMessage('Study metadata saved locally (binaries omitted for size).');
+        } else {
+          existingLocalStudies.push(savableStudy);
+          localStorage.setItem('localStudies', JSON.stringify(existingLocalStudies));
+          setMessage('Study metadata saved locally (binaries omitted for size).');
+        }
+      } else {
+        // Proceed with full base64 if small
+        let savableStudy = { ...finalStudyData };
+        if (savableStudy.series && savableStudy.series.length > 0) {
+          savableStudy.series = await Promise.all(savableStudy.series.map(async (ser) => ({
+            ...ser,
+            instances: await Promise.all(ser.instances.map(async (inst) => {
+              if (inst.file) {
+                const fileBase64 = await getBase64(inst.file);
+                return { ...inst, file: undefined, fileBase64 };
+              }
+              return inst;
+            })),
+          })));
+        }
+
+        // Final size check before store
+        const fullJSON = JSON.stringify(savableStudy);
+        if (encodeURI(fullJSON).split(/%..|./).length - 1 > availableSpace) {
+          setMessage('Study too large for localStorage even after check. Save aborted.');
+          setTimeout(() => setMessage(''), 5000);
+          return;
+        }
+
+        const existingLocalStudies = JSON.parse(localStorage.getItem('localStudies') || '[]');
+        if (mode === 'edit' && existingStudy) {
+          const updatedStudies = existingLocalStudies.map(s => s.id === existingStudy.id ? savableStudy : s);
+          localStorage.setItem('localStudies', JSON.stringify(updatedStudies));
+          setMessage('Study updated locally successfully!');
+        } else {
+          existingLocalStudies.push(savableStudy);
+          localStorage.setItem('localStudies', JSON.stringify(existingLocalStudies));
+          setMessage('Study created locally successfully!');
+        }
+      }
+
+      setTimeout(() => {
+        setMessage('');
+        if (mode === 'create') {
+          setStudyData({
+            patientName: '',
+            patientID: '',
+            patientBirthDate: '',
+            patientSex: '',
+            patientPhone: '',
+            patientEmail: '',
+            patientAddress: '',
+            studyID: '',
+            studyDate: new Date().toISOString().split('T')[0],
+            studyTime: new Date().toTimeString().split(' ')[0].slice(0, 5),
+            studyDescription: '',
+            modality: '',
+            accessionNumber: '',
+            bodyPartExamined: '',
+            referringPhysician: '',
+            studyPriority: 'routine',
+            studyStatus: 'scheduled',
+            comments: '',
+          });
+          setUploadedFileIds([]);
+          setUploadedFileNames([]);
+          setLocalStudies([]);
+        }
+      }, 2000);
     } catch (error) {
-      console.error('Error saving study:', error);
-      setMessage(`Error: ${error.message}`);
+      if (error.name === 'QuotaExceededError') {
+        setMessage('Local storage quota exceeded. Consider saving fewer files or clearing browser data.');
+      } else {
+        console.error('Error saving study locally:', error);
+        setMessage('Failed to save study locally: ' + error.message);
+      }
       setTimeout(() => setMessage(''), 5000);
     } finally {
       setLoading(false);
@@ -236,6 +336,13 @@ const AddStudyPage = ({
       return;
     }
 
+    // Check total size before processing (rough check)
+    const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+    if (totalSize > 4 * 1024 * 1024) { // Warn if >4MB
+      const confirm = window.confirm(`Selected files total ~${(totalSize / 1024 / 1024).toFixed(2)}MB. This may exceed local storage limits when saved. Proceed?`);
+      if (!confirm) return;
+    }
+
     for (const file of files) {
       if (file.size > 100 * 1024 * 1024) {
         setMessage(`File ${file.name} exceeds 100MB limit`);
@@ -254,49 +361,153 @@ const AddStudyPage = ({
     setLoading(true);
 
     try {
-      console.log('Uploading files:', files.map(f => ({ name: f.name, size: f.size })));
-      const formData = new FormData();
-      files.forEach((file) => {
-        formData.append('dicomFiles', file);
-      });
+      const newStudiesMap = new Map();
+      let processedFiles = 0;
+      let firstFileMetadata = null;
 
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return prev;
-          }
-          return prev + Math.min(10, 100 - prev);
-        });
-      }, 500);
+      for (const file of files) {
+        const arrayBuffer = await file.arrayBuffer();
+        const byteArray = new Uint8Array(arrayBuffer);
+        let dataSet;
 
-      const response = await apiRequest('/dicom/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-
-      const data = await response.json();
-      console.log('Upload response:', data);
-
-      if (response.ok && data.success) {
-        let message = `Successfully uploaded ${data.uploadResults.length} files!`;
-        if (data.errors && data.errors.length > 0) {
-          message += ` Errors: ${data.errors.map(e => `${e.filename}: ${e.error}`).join('; ')}`;
+        try {
+          dataSet = dicomParser.parseDicom(byteArray);
+        } catch (error) {
+          console.error(`Failed to parse DICOM file ${file.name}:`, error);
+          continue;
         }
-        setMessage(message);
+
+        const studyInstanceUID = dataSet.string('x0020000d') || `study_${Date.now()}_${Math.random()}`;
+        const seriesInstanceUID = dataSet.string('x0020000e') || `series_${Date.now()}_${Math.random()}`;
+        const patientName = studyData.patientName || dataSet.string('x00100010') || 'Unknown Patient';
+        const patientID = studyData.patientID || dataSet.string('x00100020') || 'Unknown ID';
+        const studyDate = studyData.studyDate || dataSet.string('x00080020') || '';
+        const modality = studyData.modality || dataSet.string('x00080060') || 'Unknown';
+        const studyDescription = studyData.studyDescription || dataSet.string('x00081030') || 'No Description';
+        const accessionNumber = studyData.accessionNumber || dataSet.string('x00080050') || generateAccessionNumber();
+        const sopInstanceUID = dataSet.string('x00080018') || `sop_${Date.now()}_${Math.random()}`;
+        const instanceNumber = dataSet.string('x00200013') || '1';
+        const patientBirthDate = dataSet.string('x00100030') || '';
+        const patientSex = dataSet.string('x00100040') || '';
+
+        // Capture metadata from the first valid file for auto-filling
+        if (!firstFileMetadata && processedFiles === 0) {
+          firstFileMetadata = {
+            patientName: dataSet.string('x00100010') || '',
+            patientID: dataSet.string('x00100020') || '',
+            patientBirthDate: dataSet.string('x00100030') || '',
+            patientSex: dataSet.string('x00100040') || '',
+            studyID: dataSet.string('x0020000d') || '', // Fetch Study Instance UID
+            studyDate: dataSet.string('x00080020') || '',
+            studyTime: dataSet.string('x00080030') || '',
+            studyDescription: dataSet.string('x00081030') || '',
+            modality: dataSet.string('x00080060') || '',
+            accessionNumber: dataSet.string('x00080050') || '',
+          };
+        }
+
+        let study = newStudiesMap.get(studyInstanceUID);
+        if (!study) {
+          study = {
+            id: studyInstanceUID,
+            patientName,
+            patientID,
+            patientBirthDate: studyData.patientBirthDate || patientBirthDate,
+            patientSex: studyData.patientSex || patientSex,
+            patientPhone: studyData.patientPhone || '',
+            patientEmail: studyData.patientEmail || '',
+            patientAddress: studyData.patientAddress || '',
+            studyID: studyData.studyID || studyInstanceUID, // Use DICOM Study Instance UID if studyData.studyID is empty
+            studyDate,
+            studyTime: studyData.studyTime || '',
+            studyDescription,
+            modality,
+            accessionNumber,
+            bodyPartExamined: studyData.bodyPartExamined || '',
+            referringPhysician: studyData.referringPhysician || '',
+            studyPriority: studyData.studyPriority || 'routine',
+            studyStatus: studyData.studyStatus || 'scheduled',
+            comments: studyData.comments || '',
+            numberOfSeries: 0,
+            numberOfImages: 0,
+            series: new Map(),
+          };
+          newStudiesMap.set(studyInstanceUID, study);
+        }
+
+        let series = study.series.get(seriesInstanceUID);
+        if (!series) {
+          series = {
+            _id: seriesInstanceUID,
+            instances: [],
+          };
+          study.series.set(seriesInstanceUID, series);
+          study.numberOfSeries += 1;
+        }
+
+        series.instances.push({
+          sopInstanceUID,
+          filename: file.name,
+          instanceNumber,
+          file,
+        });
+        study.numberOfImages += 1;
+
+        processedFiles++;
+        setUploadProgress((processedFiles / files.length) * 100);
+      }
+
+      if (processedFiles > 0) {
+        const newStudies = Array.from(newStudiesMap.values()).map(study => ({
+          ...study,
+          series: Array.from(study.series.values()),
+        }));
+        setLocalStudies(newStudies);
+        setUploadedFileIds((prev) => [
+          ...prev,
+          ...newStudies.flatMap(study =>
+            study.series.flatMap(series =>
+              series.instances.map(instance => instance.sopInstanceUID)
+            )
+          ),
+        ]);
+        setUploadedFileNames((prev) => [...prev, ...files.map(file => file.name)]);
+        setMessage(`Successfully processed ${processedFiles} DICOM files locally!`);
+
+        // Auto-fill studyData with metadata from the first valid DICOM file
+        if (firstFileMetadata) {
+          setStudyData((prev) => ({
+            ...prev,
+            patientName: prev.patientName || firstFileMetadata.patientName,
+            patientID: prev.patientID || firstFileMetadata.patientID,
+            patientBirthDate:
+              prev.patientBirthDate ||
+              (firstFileMetadata.patientBirthDate
+                ? new Date(firstFileMetadata.patientBirthDate).toISOString().split('T')[0]
+                : ''),
+            patientSex: prev.patientSex || firstFileMetadata.patientSex,
+            studyID: prev.studyID || firstFileMetadata.studyID, // Auto-fill studyID
+            studyDate:
+              prev.studyDate ||
+              (firstFileMetadata.studyDate
+                ? new Date(firstFileMetadata.studyDate).toISOString().split('T')[0]
+                : ''),
+            studyTime:
+              prev.studyTime ||
+              (firstFileMetadata.studyTime
+                ? firstFileMetadata.studyTime.slice(0, 5)
+                : prev.studyTime),
+            studyDescription: prev.studyDescription || firstFileMetadata.studyDescription,
+            modality: prev.modality || firstFileMetadata.modality,
+            accessionNumber: prev.accessionNumber || firstFileMetadata.accessionNumber,
+          }));
+        }
       } else {
-        throw new Error(data.message || 'Upload failed');
+        setMessage('No valid DICOM files were processed. Please ensure the files are valid DICOM files.');
       }
     } catch (error) {
       console.error('Upload error:', error);
-      let errorMessage = `Upload failed: ${error.message}`;
-      if (error.message.includes('No files uploaded')) {
-        errorMessage = 'No valid DICOM files were uploaded. Please select .dcm or .dicom files.';
-      }
-      setMessage(errorMessage);
+      setMessage(`Processing failed: ${error.message}`);
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
@@ -308,12 +519,11 @@ const AddStudyPage = ({
     }
   };
 
-  // Handle back navigation
   const handleBack = () => {
     if (onBack) {
       onBack();
     } else {
-      navigate('/'); // Navigate to the root route where PACSSearchResults is rendered
+      navigate('/');
     }
   };
 
@@ -324,15 +534,11 @@ const AddStudyPage = ({
           <ArrowLeft size={24} />
           Back to Studies
         </button>
-        <h1 className="details-title">
-          {mode === 'edit' ? 'Edit Study Details' : 'Add New Study'}
-        </h1>
-        <div className="header-actions">
-          <button onClick={handleUploadClick} className="upload-btn" disabled={isUploading}>
-            <Upload size={20} />
-            {isUploading ? 'Uploading...' : 'Upload DICOM'}
-          </button>
-        </div>
+        <h1 className="details-title">Add Study Details</h1>
+        <button onClick={handleUploadClick} className="upload-btn" disabled={isUploading}>
+          <Upload size={20} />
+          {isUploading ? 'Processing...' : 'Upload DICOM'}
+        </button>
       </div>
 
       {isUploading && (
@@ -340,12 +546,23 @@ const AddStudyPage = ({
           <div className="progress-bar">
             <div className="progress-fill" style={{ width: `${uploadProgress}%` }}></div>
           </div>
-          <p>Uploading files... {uploadProgress}%</p>
+          <p>Processing files... {uploadProgress}%</p>
         </div>
       )}
 
       {message && (
-        <div className={`message-banner ${message.includes('Error') || message.includes('failed') ? 'error' : 'success'}`}>
+        <div
+          className={`message-banner ${
+            message.includes('Error') ||
+            message.includes('failed') ||
+            message.includes('not found') ||
+            message.includes('duplicate') ||
+            message.includes('quota') ||
+            message.includes('space')
+              ? 'error'
+              : 'success'
+          }`}
+        >
           {message}
         </div>
       )}
@@ -453,8 +670,8 @@ const AddStudyPage = ({
                     onChange={(e) => handleInputChange('studyID', e.target.value)}
                     className="form-input"
                   />
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => handleInputChange('studyID', generateStudyID())}
                     className="generate-btn"
                   >
@@ -472,8 +689,8 @@ const AddStudyPage = ({
                     onChange={(e) => handleInputChange('accessionNumber', e.target.value)}
                     className="form-input"
                   />
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => handleInputChange('accessionNumber', generateAccessionNumber())}
                     className="generate-btn"
                   >
@@ -599,13 +816,13 @@ const AddStudyPage = ({
         </div>
 
         <div className="action-section">
-          <button 
+          <button
             onClick={handleSaveStudy}
             disabled={loading || !effectiveIsLoggedIn}
             className="save-btn primary"
           >
             {loading ? <RefreshCw size={20} className="animate-spin" /> : <Save size={20} />}
-            {loading ? 'Saving...' : (mode === 'edit' ? 'Update Study' : 'Save Study')}
+            {loading ? 'Saving...' : mode === 'edit' ? 'Update Study' : 'Save Study'}
           </button>
         </div>
       </div>

@@ -495,11 +495,11 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
                     </button>
                   </div>
 
-                  {metadata.error && (
+                  {/* {metadata.error && (
                     <div style={{ marginTop: '8px', padding: '4px 8px', backgroundColor: '#ffebee', color: '#c62828', fontSize: '12px', borderRadius: '4px' }}>
                       {metadata.error}
                     </div>
-                  )}
+                  )} */}
                 </div>
               );
             })}

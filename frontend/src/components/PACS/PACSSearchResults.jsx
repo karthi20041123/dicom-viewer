@@ -7,11 +7,9 @@ import {
   Upload,
   RefreshCw,
   Filter,
-  Moon,
-  Sun,
   Plus
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import * as dicomParser from 'dicom-parser';
 import * as cornerstone from 'cornerstone-core';
 import * as cornerstoneWADOImageLoader from 'cornerstone-wado-image-loader';
@@ -25,9 +23,6 @@ import Signup from '../Signup';
 import './PACSSearchResults.css';
 import screenshot from '../../assets/Dicom.png';
 
-// API base URL
-const API_BASE_URL = 'http://localhost:5000/api';
-
 // Slide transition for dialogs
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
@@ -37,7 +32,7 @@ const Transition = React.forwardRef(function Transition(props, ref) {
 cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
 cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
 
-const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, onSignup, onLogout }) => {
+const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, onSignup, onLogout, onStudySaved }) => {
   const [allStudies, setAllStudies] = useState([]);
   const [filteredStudies, setFilteredStudies] = useState([]);
   const [searchFilters, setSearchFilters] = useState({
@@ -56,10 +51,9 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
   const [localIsLoggedIn, setLocalIsLoggedIn] = useState(false);
   const isWebWorkerInitialized = useRef(false);
   const [userProfile, setUserProfile] = useState(null);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [showSampleViewer, setShowSampleViewer] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const navigate = useNavigate();
 
   const effectiveIsLoggedIn = isControlled ? isLoggedIn : localIsLoggedIn;
 
@@ -67,45 +61,34 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
     return localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
   };
 
-  const apiRequest = async (endpoint, options = {}) => {
-    const token = getAuthToken();
-    const headers = {
-      ...options.headers,
-    };
+  // Helper to convert File to base64
+  const getBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+  // Helper to reconstruct File from base64
+  const reconstructFile = async (fileBase64, filename) => {
+    if (!fileBase64) return null;
+    const response = await fetch(`data:application/octet-stream;base64,${fileBase64}`);
+    const blob = await response.blob();
+    return new File([blob], filename, { type: 'application/dicom' });
+  };
 
-    if (options.body && !(options.body instanceof FormData)) {
-      headers['Content-Type'] = 'application/json';
-    }
-
+  // Helper to check available localStorage space (approximate)
+  const getLocalStorageSpace = () => {
+    let data = '';
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout
-
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        ...options,
-        headers,
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (response.status === 401) {
-        handleLogout();
-        throw new Error('Authentication expired. Please log in again.');
+      for (const key in localStorage) {
+        if (localStorage.hasOwnProperty(key)) {
+          data += localStorage[key];
+        }
       }
-
-      return response;
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        console.error(`API request to ${endpoint} timed out`);
-        throw new Error('Request timed out. Please try again with smaller files.');
-      }
-      console.error(`API request error for ${endpoint}:`, error);
-      throw error;
+      return data ? 5 * 1024 * 1024 - (encodeURI(data).split(/%..|./).length - 1) : 5 * 1024 * 1024;
+    } catch (e) {
+      return 0;
     }
   };
 
@@ -145,15 +128,30 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
       }
     }
 
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-      setIsDarkMode(savedTheme === 'dark');
-      document.body.classList.toggle('dark-mode', savedTheme === 'dark');
-    }
+    // Load and reconstruct studies from localStorage
+    const loadStudies = async () => {
+      const stored = JSON.parse(localStorage.getItem('localStudies') || '[]');
+      const reconstructed = await Promise.all(stored.map(async (study) => {
+        if (study.series && study.series.length > 0) {
+          const recSeries = await Promise.all(study.series.map(async (ser) => ({
+            ...ser,
+            instances: await Promise.all(ser.instances.map(async (inst) => {
+              if (inst.fileBase64) {
+                const file = await reconstructFile(inst.fileBase64, inst.filename);
+                return { ...inst, file, fileBase64: undefined };
+              }
+              return inst;
+            })),
+          })));
+          return { ...study, series: recSeries };
+        }
+        return study;
+      }));
+      setAllStudies(reconstructed);
+      setFilteredStudies(reconstructed);
+    };
 
-    if (effectiveIsLoggedIn) {
-      fetchStudies();
-    }
+    loadStudies();
 
     return () => {
       if (isWebWorkerInitialized.current) {
@@ -165,51 +163,41 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
         }
       }
     };
-  }, [isControlled, effectiveIsLoggedIn]);
+  }, [isControlled]);
 
   useEffect(() => {
     if (isControlled && isLoggedIn) {
       const userData = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user') || '{}');
       setUserProfile(userData);
-      fetchStudies();
     }
   }, [isLoggedIn, isControlled]);
 
   useEffect(() => {
+    if (onStudySaved) {
+      setAllStudies((prev) => {
+        const existingStudyIndex = prev.findIndex(study => study.id === onStudySaved.id);
+        if (existingStudyIndex !== -1) {
+          const updatedStudies = [...prev];
+          updatedStudies[existingStudyIndex] = onStudySaved;
+          return updatedStudies;
+        }
+        return [...prev, onStudySaved];
+      });
+      setFilteredStudies((prev) => {
+        const existingStudyIndex = prev.findIndex(study => study.id === onStudySaved.id);
+        if (existingStudyIndex !== -1) {
+          const updatedStudies = [...prev];
+          updatedStudies[existingStudyIndex] = onStudySaved;
+          return updatedStudies;
+        }
+        return [...prev, onStudySaved];
+      });
+    }
+  }, [onStudySaved]);
+
+  useEffect(() => {
     handleAutoSearch();
   }, [searchFilters, allStudies]);
-
-  const fetchStudies = async () => {
-    if (!effectiveIsLoggedIn) return;
-
-    setLoading(true);
-    try {
-      const queryParams = new URLSearchParams();
-      Object.entries(searchFilters).forEach(([key, value]) => {
-        if (value && value.trim() !== '') {
-          queryParams.append(key, value);
-        }
-      });
-
-      const response = await apiRequest(`/dicom/studies?${queryParams.toString()}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setAllStudies(data.studies);
-          setFilteredStudies(data.studies);
-        } else {
-          setMessage(data.message || 'Failed to fetch studies');
-        }
-      } else {
-        const errorData = await response.json();
-        setMessage(errorData.message || `Failed to fetch studies: ${response.statusText}`);
-      }
-    } catch (error) {
-      setMessage(error.message || 'Error connecting to server');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAutoSearch = () => {
     let filtered = allStudies;
@@ -258,7 +246,11 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
 
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files);
-    if (!files.length) return;
+    if (!files.length) {
+      setMessage('No files selected for upload');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
 
     if (!effectiveIsLoggedIn) {
       setMessage('Please log in to upload files');
@@ -266,9 +258,20 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
       return;
     }
 
+    const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+    if (totalSize > 4 * 1024 * 1024) {
+      const confirm = window.confirm(`Selected files total ~${(totalSize / 1024 / 1024).toFixed(2)}MB. This may exceed local storage limits. Proceed?`);
+      if (!confirm) return;
+    }
+
     for (const file of files) {
       if (file.size > 100 * 1024 * 1024) {
         setMessage(`File ${file.name} exceeds 100MB limit`);
+        setTimeout(() => setMessage(''), 3000);
+        return;
+      }
+      if (!['.dcm', '.dicom'].includes(file.name.toLowerCase().slice(-4))) {
+        setMessage(`File ${file.name} is not a valid DICOM file (.dcm or .dicom)`);
         setTimeout(() => setMessage(''), 3000);
         return;
       }
@@ -279,61 +282,134 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
     setLoading(true);
 
     try {
-      const formData = new FormData();
-      files.forEach((file, index) => {
-        formData.append('dicomFiles', file);
-        setTimeout(() => {
-          setUploadProgress(((index + 1) / files.length) * 100);
-        }, index * 500);
-      });
+      const newStudiesMap = new Map();
+      let processedFiles = 0;
 
-      const response = await apiRequest('/dicom/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      for (const file of files) {
+        const arrayBuffer = await file.arrayBuffer();
+        const byteArray = new Uint8Array(arrayBuffer);
+        let dataSet;
 
-      const contentType = response.headers.get('content-type');
-      if (!response.ok) {
-        let errorMessage = `Upload failed: Server responded with status ${response.status}`;
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-          if (errorData.errors) {
-            console.warn('Upload errors:', errorData.errors);
-            errorMessage += `. ${errorData.errors.length} file(s) failed to process. Check console for details.`;
-          }
-        } else {
-          const text = await response.text();
-          console.error('Non-JSON error response:', text);
-          errorMessage = 'Upload failed: Server error. Check console for details.';
+        try {
+          dataSet = dicomParser.parseDicom(byteArray);
+        } catch (error) {
+          console.error(`Failed to parse DICOM file ${file.name}:`, error);
+          continue;
         }
-        throw new Error(errorMessage);
+
+        const studyInstanceUID = dataSet.string('x0020000d') || `study_${Date.now()}_${Math.random()}`;
+        const seriesInstanceUID = dataSet.string('x0020000e') || `series_${Date.now()}_${Math.random()}`;
+        const patientName = dataSet.string('x00100010') || 'Unknown Patient';
+        const patientID = dataSet.string('x00100020') || 'Unknown ID';
+        const studyDate = dataSet.string('x00080020') || '';
+        const modality = dataSet.string('x00080060') || 'Unknown';
+        const studyDescription = dataSet.string('x00081030') || 'No Description';
+        const accessionNumber = dataSet.string('x00080050') || '';
+        const sopInstanceUID = dataSet.string('x00080018') || `sop_${Date.now()}_${Math.random()}`;
+        const instanceNumber = dataSet.string('x00200013') || '1';
+
+        let study = newStudiesMap.get(studyInstanceUID);
+        if (!study) {
+          study = {
+            id: studyInstanceUID,
+            patientName,
+            patientID,
+            studyDate,
+            modality,
+            studyDescription,
+            accessionNumber,
+            numberOfSeries: 0,
+            numberOfImages: 0,
+            series: new Map(),
+          };
+          newStudiesMap.set(studyInstanceUID, study);
+        }
+
+        let series = study.series.get(seriesInstanceUID);
+        if (!series) {
+          series = {
+            _id: seriesInstanceUID,
+            instances: [],
+          };
+          study.series.set(seriesInstanceUID, series);
+          study.numberOfSeries += 1;
+        }
+
+        series.instances.push({
+          sopInstanceUID,
+          filename: file.name,
+          instanceNumber,
+          file,
+        });
+        study.numberOfImages += 1;
+
+        processedFiles++;
+        setUploadProgress((processedFiles / files.length) * 100);
       }
 
-      if (contentType && contentType.includes('application/json')) {
-        const data = await response.json();
-        if (data.success) {
-          setMessage(`Successfully uploaded ${data.uploadResults.length} files!`);
-          await fetchStudies();
-          if (data.errors && data.errors.length > 0) {
-            console.warn('Upload errors:', data.errors);
-            setMessage(`Uploaded ${data.uploadResults.length} files with ${data.errors.length} errors. Check console for details.`);
+      if (processedFiles > 0) {
+        const newStudies = Array.from(newStudiesMap.values()).map(study => ({
+          ...study,
+          series: Array.from(study.series.values()),
+        }));
+
+        // For upload in search page, apply same size logic: if too many images, save metadata only
+        let savableNewStudies;
+        if (newStudies.reduce((sum, s) => sum + s.numberOfImages, 0) > 50) {
+          const confirm = window.confirm(`Large upload (${processedFiles} files). Save metadata only to avoid quota issues? OK for metadata, Cancel to abort.`);
+          if (!confirm) {
+            setMessage('Upload aborted.');
+            return;
           }
+          savableNewStudies = newStudies.map(study => ({
+            ...study,
+            series: study.series.map(ser => ({
+              ...ser,
+              instances: ser.instances.map(inst => ({
+                sopInstanceUID: inst.sopInstanceUID,
+                filename: inst.filename,
+                instanceNumber: inst.instanceNumber,
+              }))
+            })),
+            _note: 'Binaries skipped due to size'
+          }));
         } else {
-          throw new Error(data.message || 'Upload failed');
+          savableNewStudies = await Promise.all(newStudies.map(async (study) => {
+            const series = await Promise.all(study.series.map(async (ser) => ({
+              ...ser,
+              instances: await Promise.all(ser.instances.map(async (inst) => {
+                const fileBase64 = await getBase64(inst.file);
+                return { ...inst, file: undefined, fileBase64 };
+              })),
+            })));
+            return { ...study, series };
+          }));
         }
+
+        // Update localStorage with savable versions
+        const existingLocalStudies = JSON.parse(localStorage.getItem('localStudies') || '[]');
+        const updatedStudies = [...existingLocalStudies, ...savableNewStudies];
+        const savableJSON = JSON.stringify(updatedStudies);
+        if (encodeURI(savableJSON).split(/%..|./).length - 1 > getLocalStorageSpace()) {
+          setMessage('Insufficient space in localStorage. Clear some studies and try again.');
+          return;
+        }
+        localStorage.setItem('localStudies', savableJSON);
+
+        // Update state with original files for in-memory use
+        setAllStudies((prev) => [...prev, ...newStudies]);
+        setFilteredStudies((prev) => [...prev, ...newStudies]);
+        setMessage(`Successfully processed ${processedFiles} DICOM files locally!`);
       } else {
-        const text = await response.text();
-        console.error('Non-JSON response received:', text);
-        throw new Error('Upload failed: Server returned an unexpected response');
+        setMessage('No valid DICOM files were processed.');
       }
     } catch (error) {
-      console.error('Upload error:', error);
-      let errorMessage = error.message || 'Upload failed: Unable to connect to server';
-      if (error.message.includes('Failed to fetch')) {
-        errorMessage = 'Upload failed: Server connection was reset. Please check if the server is running and try again.';
+      if (error.name === 'QuotaExceededError') {
+        setMessage('Local storage quota exceeded during upload. Try fewer files or clear data.');
+      } else {
+        console.error('Upload error:', error);
+        setMessage(`Processing failed: ${error.message}`);
       }
-      setMessage(errorMessage);
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
@@ -343,10 +419,6 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
       }
       setTimeout(() => setMessage(''), 5000);
     }
-  };
-
-  const handleSearch = async () => {
-    await fetchStudies();
   };
 
   const handleStudySelect = (study) => {
@@ -379,79 +451,57 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
     setLoading(true);
 
     try {
-      const seriesResponse = await apiRequest(`/dicom/study/${study.id}/series`);
-      if (!seriesResponse.ok) {
-        throw new Error('Failed to fetch series data');
-      }
-
-      const seriesData = await seriesResponse.json();
-      if (!seriesData.success || !seriesData.series.length) {
-        throw new Error('No series found for this study');
-      }
-
       const zip = new JSZip();
       let exportedCount = 0;
 
-      for (const series of seriesData.series) {
-        const instancesResponse = await apiRequest(`/dicom/series/${series._id}/instances`);
-        if (!instancesResponse.ok) continue;
-
-        const instancesData = await instancesResponse.json();
-        if (!instancesData.success || !instancesData.instances.length) continue;
-
-        for (const instance of instancesData.instances) {
+      for (const series of study.series) {
+        for (const instance of series.instances) {
           try {
             if (selectedFormat === 'dcm') {
-              const fileResponse = await apiRequest(`/dicom/file/${instance.sopInstanceUID}`);
-              if (fileResponse.ok) {
-                const fileBlob = await fileResponse.blob();
-                const fileName = instance.filename || `image_${instance.instanceNumber}.dcm`;
-                zip.file(fileName, fileBlob);
-                exportedCount++;
-              }
+              const fileBlob = instance.file;
+              const fileName = instance.filename || `image_${instance.instanceNumber}.dcm`;
+              zip.file(fileName, fileBlob);
+              exportedCount++;
             } else {
-              const fileResponse = await apiRequest(`/dicom/file/${instance.sopInstanceUID}`);
-              if (fileResponse.ok) {
-                const fileBlob = await fileResponse.blob();
-                const arrayBuffer = await fileBlob.arrayBuffer();
+              const fileBlob = instance.file;
+              const arrayBuffer = await fileBlob.arrayBuffer();
 
-                const element = document.createElement('div');
-                element.style.width = '512px';
-                element.style.height = '512px';
-                document.body.appendChild(element);
+              const element = document.createElement('div');
+              element.style.width = '512px';
+              element.style.height = '512px';
+              document.body.appendChild(element);
 
-                cornerstone.enable(element);
+              cornerstone.enable(element);
 
-                const blobUrl = URL.createObjectURL(fileBlob);
-                const imageId = `dicomweb:${blobUrl}`;
+              const blobUrl = URL.createObjectURL(fileBlob);
+              const imageId = `dicomweb:${blobUrl}`;
 
-                const image = await cornerstone.loadAndCacheImage(imageId);
-                if (image) {
-                  cornerstone.displayImage(element, image);
-                  await new Promise((resolve) => setTimeout(resolve, 50));
+              const image = await cornerstone.loadAndCacheImage(imageId);
+              if (image) {
+                cornerstone.displayImage(element, image);
+                await new Promise((resolve) => setTimeout(resolve, 50));
 
-                  const canvas = element.querySelector('canvas');
-                  if (canvas) {
-                    let fileData, fileName;
-                    if (selectedFormat === 'png') {
-                      fileData = canvas.toDataURL('image/png').split(',')[1];
-                      fileName = `${instance.filename || 'image'}_${instance.instanceNumber}.png`;
-                    } else if (selectedFormat === 'jpg') {
-                      fileData = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
-                      fileName = `${instance.filename || 'image'}_${instance.instanceNumber}.jpg`;
-                    }
+                const canvas = element.querySelector('canvas');
+                if (canvas) {
+                  let fileData, fileName;
+                  if (selectedFormat === 'png') {
+                    fileData = canvas.toDataURL('image/png').split(',')[1];
+                    fileName = `${instance.filename || 'image'}_${instance.instanceNumber}.png`;
+                  } else if (selectedFormat === 'jpg') {
+                    fileData = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+                    fileName = `${instance.filename || 'image'}_${instance.instanceNumber}.jpg`;
+                  }
 
-                    if (fileData) {
-                      zip.file(fileName, fileData, { base64: true });
-                      exportedCount++;
-                    }
+                  if (fileData) {
+                    zip.file(fileName, fileData, { base64: true });
+                    exportedCount++;
                   }
                 }
-
-                cornerstone.disable(element);
-                document.body.removeChild(element);
-                URL.revokeObjectURL(blobUrl);
               }
+
+              cornerstone.disable(element);
+              document.body.removeChild(element);
+              URL.revokeObjectURL(blobUrl);
             }
           } catch (instanceError) {
             console.error(`Error processing instance ${instance.sopInstanceUID}:`, instanceError);
@@ -467,7 +517,7 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
       } else {
         setMessage('No files were exported. Please try again.');
       }
-    } catch (error) {
+    5} catch (error) {
       console.error('Export error:', error);
       setMessage(`Export failed: ${error.message}`);
     } finally {
@@ -507,7 +557,6 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
       setLocalIsLoggedIn(true);
       setUserProfile(userData);
     }
-    await fetchStudies();
   };
 
   const handleSignupSuccess = () => {
@@ -529,12 +578,6 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
     setLoginOpen(true);
   };
 
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-    document.body.classList.toggle('dark-mode', !isDarkMode);
-    localStorage.setItem('theme', !isDarkMode ? 'dark' : 'light');
-  };
-
   const getUserInitial = () => {
     const user = userProfile || JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user') || '{}');
     if (!user) return 'U';
@@ -549,19 +592,19 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
     <>
       <div className="pacsrs-header">
         <div className="pacsrs-header-buttons">
-          <button onClick={() => setShowSampleViewer(true)} className="pacsrs-sample-dicom-btn">
-            Sample DICOM Viewer
-          </button>
-          <Link to="/add-study" className="pacsrs-add-study-btn">
-            <Plus size={24} style={{ marginRight: '8px' }} />
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => navigate('/add-study')}
+            className="pacsrs-add-study-btn"
+            startIcon={<Plus size={24} />}
+            sx={{ marginRight: '8px' }}
+          >
             Add New Study
-          </Link>
+          </Button>
         </div>
         <h1 className="pacsrs-title">PACS SERVER</h1>
         <div className="pacsrs-header-icons">
-          <a href="#" onClick={toggleTheme} className="pacsrs-theme-toggle-btn" role="button">
-            {isDarkMode ? <Sun size={28} /> : <Moon size={28} />}
-          </a>
           {!effectiveIsLoggedIn && (
             <a href="#" onClick={() => setLoginOpen(true)} className="pacsrs-login-btn" role="button">
               <User size={28} />
@@ -583,12 +626,12 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
             <div className="pacsrs-progress-bar">
               <div className="pacsrs-progress-fill" style={{ width: `${uploadProgress}%` }}></div>
             </div>
-            <p>Uploading files...</p>
+            <p>Processing files...</p>
           </div>
         )}
 
         {message && (
-          <div className={`pacsrs-message-banner ${message.includes('Error') || message.includes('failed') ? 'error' : 'success'}`}>
+          <div className={`pacsrs-message-banner ${message.includes('Error') || message.includes('failed') || message.includes('quota') ? 'error' : 'success'}`}>
             {message}
           </div>
         )}
@@ -596,7 +639,7 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
         <div className="pacsrs-upload-dicom-container">
           <button onClick={handleUploadClick} className="pacsrs-upload-dicom-btn" disabled={isUploading}>
             <Upload size={24} style={{ marginRight: '8px' }} />
-            {isUploading ? 'Uploading...' : 'Upload DICOM'}
+            {isUploading ? 'Processing...' : 'Upload DICOM'}
           </button>
         </div>
 
@@ -613,7 +656,7 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
                 type="text"
                 placeholder="Eg. John Doe"
                 value={searchFilters.patientName}
-                onChange={(e) => setSearchFilters((prev) => ({ ...prev, patientName: e.target.value }))}
+                onChange={(e) =>  setSearchFilters((prev) => ({ ...prev, patientName: e.target.value }))}
                 className="pacsrs-text-input"
               />
             </div>
@@ -670,7 +713,7 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
 
           <div className="pacsrs-search-buttons">
             <button
-              onClick={handleSearch}
+              onClick={() => handleAutoSearch()}
               disabled={loading || !effectiveIsLoggedIn}
               className="pacsrs-search-btn"
             >
@@ -791,22 +834,6 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
             onLoginClick={switchToLogin}
             onSignup={handleSignupSuccess}
           />
-        </Dialog>
-
-        <Dialog
-          open={showSampleViewer}
-          onClose={() => setShowSampleViewer(false)}
-          fullWidth
-          maxWidth="lg"
-          TransitionComponent={Transition}
-        >
-          <div style={{ padding: '20px', textAlign: 'center', backgroundColor: 'var(--container-bg)', color: 'var(--text-color)' }}>
-            <img
-              src={screenshot}
-              alt="Sample DICOM Viewer"
-              style={{ maxWidth: '100%', maxHeight: '80vh' }}
-            />
-          </div>
         </Dialog>
       </div>
     </>

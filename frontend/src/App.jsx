@@ -3,7 +3,7 @@ import { Route, Routes, useNavigate } from "react-router-dom";
 import PACSSearchResults from "./components/PACS/PACSSearchResults";
 import PACSStudyDetails from "./components/PACS/PACSStudyDetails";
 import DicomViewer from "./components/DicomViewer";
-import AddStudyPage from "./components/PACS/AddStudyPage"; // Import AddStudyPage
+import AddStudyPage from "./components/PACS/AddStudyPage";
 import Button from "@mui/material/Button";
 import "./App.css";
 
@@ -106,7 +106,7 @@ function AppContent() {
   };
 
   const commonProps = {
-    isLoggedIn: isLoggedIn, // Renamed to match prop expectations
+    isLoggedIn: isLoggedIn,
     apiRequest,
     fetchStudies,
     setLoading,
@@ -131,7 +131,7 @@ function AppContent() {
         element={
           <AddStudyPage
             {...commonProps}
-            onBack={handleBackToSearch} // Pass onBack to navigate back to search results
+            onBack={handleBackToSearch}
           />
         }
       />
@@ -142,32 +142,13 @@ function AppContent() {
             selectedStudy={selectedStudy}
             onBackToSearch={handleBackToSearch}
             onViewSeries={handleViewSeries}
-            onLogout={() => setIsLoggedIn(false)} // Pass onLogout to update login state
+            onLogout={() => setIsLoggedIn(false)}
           />
         }
       />
       <Route
         path="/dicom"
-        element={
-          <div className="dicom-viewer-container">
-            <h1 className="dicom-viewer-title">DICOM Viewer with MPR</h1>
-            <div className="back-button-container">
-              <Button
-                variant="contained"
-                sx={{
-                  backgroundColor: "#020079",
-                  color: "#ffffff",
-                  "&:hover": { backgroundColor: "#003366" },
-                  borderRadius: "8px",
-                }}
-                onClick={() => navigate("/")}
-              >
-                Back to PACS
-              </Button>
-            </div>
-            <DicomViewer files={files} />
-          </div>
-        }
+        element={<DicomViewer files={files} />}
       />
     </Routes>
   );

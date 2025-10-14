@@ -1,22 +1,23 @@
 import express from 'express';
-import mongoose from 'mongoose';
+import { Sequelize, DataTypes, Op } from 'sequelize';
 import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
+import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
-import User from './models/User.js';
-import DicomFile from './models/DicomFile.js';
-import Study from './models/Study.js';
-import Series from './models/Series.js';
-import Instance from './models/Instance.js';
-import Patient from './models/Patient.js';
-import { config as dotenvConfig } from 'dotenv';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import dicomParser from 'dicom-parser';
 import speakeasy from 'speakeasy';
 import nodemailer from 'nodemailer';
+import { config as dotenvConfig } from 'dotenv';
+import User from './models/User.js';
+import Patient from './models/Patient.js';
+import Study from './models/Study.js';
+import Series from './models/Series.js';
+import Instance from './models/Instance.js';
+import DicomFile from './models/DicomFile.js';
+import Annotation from './models/Annotation.js';
 
 // ES6 module compatibility
 const __filename = fileURLToPath(import.meta.url);
@@ -27,8 +28,8 @@ const app = express();
 
 // Load environment variables
 dotenvConfig();
-if (!process.env.JWT_SECRET || !process.env.MONGODB_URI) {
-  console.error('❌ Missing required environment variables: JWT_SECRET or MONGODB_URI');
+if (!process.env.JWT_SECRET || !process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_PASS || !process.env.DB_NAME) {
+  console.error('❌ Missing required environment variables: JWT_SECRET, DB_HOST, DB_USER, DB_PASS, or DB_NAME');
   process.exit(1);
 }
 
@@ -38,16 +39,17 @@ if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
 }
 
 // Create uploads directory
-const uploadsDir = path.join(__dirname, 'Uploads', 'dicom');
-if (!fs.existsSync(uploadsDir)) {
+const uploadsDir = path.join(__dirname, process.env.STORAGE_PATH || 'Uploads/dicom');
+const createUploadsDir = async () => {
   try {
-    fs.mkdirSync(uploadsDir, { recursive: true });
+    await fs.mkdir(uploadsDir, { recursive: true });
     console.log('✅ Created uploads directory:', uploadsDir);
   } catch (err) {
     console.error('❌ Failed to create uploads directory:', err);
     process.exit(1);
   }
-}
+};
+createUploadsDir();
 
 // Middleware
 app.use(cors({
@@ -56,14 +58,20 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
-app.use(express.json({ limit: '100mb' })); // Increase JSON payload limit
-app.use(express.urlencoded({ extended: true, limit: '100mb' })); // Increase URL-encoded payload limit
-app.use('/uploads', express.static(path.join(__dirname, 'Uploads')));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+app.use('/Uploads', express.static(path.join(__dirname, 'Uploads')));
 
 // Configure multer
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
+  destination: async (req, file, cb) => {
+    try {
+      await fs.access(uploadsDir);
+      cb(null, uploadsDir);
+    } catch (err) {
+      await fs.mkdir(uploadsDir, { recursive: true });
+      cb(null, uploadsDir);
+    }
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -119,30 +127,60 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// MongoDB connection
+// Sequelize connection
+const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, process.env.DB_PASS, {
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT || 3306,
+  dialect: 'mysql',
+  logging: (msg) => console.log('Sequelize SQL:', msg),
+  pool: {
+    max: 10,
+    min: 0,
+    acquire: 30000,
+    idle: 10000,
+  },
+});
+
+// Initialize models
+const models = {
+  User: User(sequelize, DataTypes),
+  Patient: Patient(sequelize, DataTypes),
+  Study: Study(sequelize, DataTypes),
+  Series: Series(sequelize, DataTypes),
+  Instance: Instance(sequelize, DataTypes),
+  DicomFile: DicomFile(sequelize, DataTypes),
+  Annotation: Annotation(sequelize, DataTypes),
+};
+
+// Define associations
+Object.keys(models).forEach((modelName) => {
+  if (models[modelName].associate) {
+    models[modelName].associate(models);
+  }
+});
+
+// Database connection
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 5000,
-    });
-    console.log('✅ Connected to MongoDB Atlas');
+    await sequelize.authenticate();
+    console.log('✅ Connected to MySQL');
+    await sequelize.sync({ force: false });
+    console.log('✅ Database synced');
   } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
+    console.error('❌ Database connection error:', error);
     process.exit(1);
   }
 };
 connectDB();
 
-// Email transporter setup (conditional on credentials)
+// Email transporter setup
 const transporter = (process.env.EMAIL_USER && process.env.EMAIL_PASS) ? nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
-  secure: true, // Use SSL
+  secure: true,
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // Note: For Gmail, this should be an App Password if 2-Step Verification is enabled. See: https://support.google.com/accounts/answer/185833 for instructions on generating an App Password.
+    pass: process.env.EMAIL_PASS,
   },
 }) : null;
 
@@ -157,18 +195,8 @@ const sendLoginNotification = async (email, username) => {
     from: process.env.EMAIL_USER,
     to: email,
     subject: 'Successful Login Notification',
-    text: `Dear ${username},
-
-You have successfully logged in to our system on ${new Date().toLocaleString()}.
-
-If this wasn't you, please secure your account immediately.
-
-Best regards,
-Your App Team`,
-    html: `<p>Dear ${username},</p>
-<p>You have successfully logged in to our system on ${new Date().toLocaleString()}.</p>
-<p>If this wasn't you, please secure your account immediately.</p>
-<p>Best regards,<br>Your App Team</p>`, // Added HTML version to improve deliverability and reduce spam risk
+    text: `Dear ${username},\n\nYou have successfully logged in to our system on ${new Date().toLocaleString()}.\n\nIf this wasn't you, please secure your account immediately.\n\nBest regards,\nYour App Team`,
+    html: `<p>Dear ${username},</p><p>You have successfully logged in to our system on ${new Date().toLocaleString()}.</p><p>If this wasn't you, please secure your account immediately.</p><p>Best regards,<br>Your App Team</p>`,
   };
 
   try {
@@ -179,12 +207,12 @@ Your App Team`,
   }
 };
 
-// Parse DICOM metadata with async file reading
+// Parse DICOM metadata
 const parseDicomMetadata = async (filePath) => {
   try {
-    const fileBuffer = await fs.promises.readFile(filePath);
+    const fileBuffer = await fs.readFile(filePath);
     const byteArray = new Uint8Array(fileBuffer);
-    const dataSet = dicomParser.parseDicom(byteArray, { untilTag: 'x7fe00010' }); // Stop before pixel data
+    const dataSet = dicomParser.parseDicom(byteArray, { untilTag: 'x7fe00010' });
 
     const parseDicomDate = (dateStr) => {
       if (!dateStr || dateStr.trim() === '') return null;
@@ -245,7 +273,7 @@ const parseDicomMetadata = async (filePath) => {
   }
 };
 
-// DICOM upload endpoint with no file limit
+// DICOM upload endpoint
 app.post('/api/dicom/upload', authenticateToken, upload.array('dicomFiles'), async (req, res) => {
   req.setTimeout(300000); // 5 minutes timeout
 
@@ -256,201 +284,606 @@ app.post('/api/dicom/upload', authenticateToken, upload.array('dicomFiles'), asy
 
     const uploadResults = [];
     const errors = [];
+    let firstValidMetadata = null;
+    const seriesMap = new Map(); // Map to group files by Series Instance UID
 
-    for (const file of req.files) {
-      try {
+    const t = await sequelize.transaction();
+
+    try {
+      // Group files by Series Instance UID
+      for (const file of req.files) {
         const metadata = await parseDicomMetadata(file.path);
         if (!metadata) {
           errors.push({ filename: file.originalname, error: 'Invalid DICOM file' });
-          await fs.promises.unlink(file.path).catch((err) => console.error(`Failed to delete file ${file.path}:`, err));
+          await fs.unlink(file.path).catch((err) => console.error(`Failed to delete file ${file.path}:`, err));
           continue;
         }
 
-        if (!metadata.studyInstanceUID || !metadata.patientID || !metadata.seriesInstanceUID || !metadata.sopInstanceUID) {
-          errors.push({ filename: file.originalname, error: 'Missing required DICOM metadata (studyInstanceUID, patientID, seriesInstanceUID, or sopInstanceUID)' });
-          await fs.promises.unlink(file.path).catch((err) => console.error(`Failed to delete file ${file.path}:`, err));
+        if (!metadata.studyInstanceUID || !metadata.seriesInstanceUID || !metadata.sopInstanceUID || !metadata.patientID) {
+          errors.push({ filename: file.originalname, error: 'Missing required DICOM metadata (studyInstanceUID, seriesInstanceUID, sopInstanceUID, or patientID)' });
+          await fs.unlink(file.path).catch((err) => console.error(`Failed to delete file ${file.path}:`, err));
           continue;
         }
 
-        const session = await mongoose.startSession();
-        try {
-          await session.withTransaction(async () => {
-            // Find or create Patient
-            let patient = await Patient.findOne({ patientID: metadata.patientID }).session(session);
-            if (!patient) {
-              patient = new Patient({
-                patientID: metadata.patientID,
-                patientName: metadata.patientName,
-                patientBirthDate: metadata.patientBirthDate,
-                patientSex: metadata.patientSex,
-                createdAt: new Date(),
+        // Check for existing SOP Instance UID
+        const existingInstance = await models.Instance.findOne({
+          where: { sopInstanceUID: metadata.sopInstanceUID },
+          transaction: t,
+        });
+        if (existingInstance) {
+          errors.push({ filename: file.originalname, error: `File with SOP Instance UID ${metadata.sopInstanceUID} already exists` });
+          await fs.unlink(file.path).catch((err) => console.error(`Failed to delete duplicate file ${file.path}:`, err));
+          continue;
+        }
+
+        // Store metadata from the first valid DICOM file for autofill
+        if (!firstValidMetadata) {
+          firstValidMetadata = {
+            patientName: metadata.patientName,
+            patientID: metadata.patientID,
+            patientBirthDate: metadata.patientBirthDate,
+            patientSex: metadata.patientSex,
+            studyID: metadata.studyID,
+            studyDate: metadata.studyDate,
+            studyTime: metadata.studyTime,
+            studyDescription: metadata.studyDescription,
+            modality: metadata.modality,
+            bodyPartExamined: metadata.bodyPartExamined,
+          };
+        }
+
+        // Group files by seriesInstanceUID
+        if (!seriesMap.has(metadata.seriesInstanceUID)) {
+          seriesMap.set(metadata.seriesInstanceUID, {
+            studyInstanceUID: metadata.studyInstanceUID,
+            modality: metadata.modality,
+            seriesDescription: metadata.seriesDescription || '',
+            files: [],
+          });
+        }
+        seriesMap.get(metadata.seriesInstanceUID).files.push({ file, metadata });
+      }
+
+      // Process each series
+      for (const [seriesInstanceUID, seriesData] of seriesMap) {
+        const { studyInstanceUID, modality, seriesDescription, files } = seriesData;
+
+        // Verify all files in the series have the same Study Instance UID
+        const consistentStudyUID = files.every(fileData => fileData.metadata.studyInstanceUID === studyInstanceUID);
+        if (!consistentStudyUID) {
+          errors.push({ seriesInstanceUID, message: 'Inconsistent Study Instance UID detected for files in the same series' });
+          for (const { file } of files) {
+            await fs.unlink(file.path).catch((err) => console.error(`Failed to delete file ${file.path} due to study mismatch:`, err));
+          }
+          continue;
+        }
+
+        // Find or create Patient
+        const patient = await models.Patient.findOne({
+          where: { patientID: files[0].metadata.patientID },
+          transaction: t,
+        }) || await models.Patient.create({
+          patientID: files[0].metadata.patientID,
+          patientName: files[0].metadata.patientName,
+          patientBirthDate: files[0].metadata.patientBirthDate,
+          patientSex: files[0].metadata.patientSex,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }, { transaction: t });
+
+        // Find or create Study
+        let study = await models.Study.findOne({
+          where: { studyInstanceUID },
+          transaction: t,
+        });
+        if (!study) {
+          study = await models.Study.create({
+            patientId: patient.id,
+            studyInstanceUID,
+            studyID: files[0].metadata.studyID,
+            studyDate: files[0].metadata.studyDate,
+            studyTime: files[0].metadata.studyTime,
+            studyDescription: files[0].metadata.studyDescription,
+            modalitiesInStudy: [modality].filter(Boolean),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }, { transaction: t });
+        }
+
+        // Check if Series exists
+        let series = await models.Series.findOne({
+          where: { seriesInstanceUID },
+          transaction: t,
+        });
+
+        if (series) {
+          // Series exists, notify user and process files under existing series
+          errors.push({ seriesInstanceUID, message: 'This Series already exists in PACS.' });
+        } else {
+          // Create new Series
+          series = await models.Series.create({
+            studyId: study.id,
+            seriesInstanceUID,
+            seriesNumber: files[0].metadata.seriesNumber,
+            seriesDate: files[0].metadata.seriesDate,
+            seriesTime: files[0].metadata.seriesTime,
+            seriesDescription,
+            modality,
+            bodyPartExamined: files[0].metadata.bodyPartExamined,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }, { transaction: t });
+
+          await models.Study.update(
+            { numberOfSeries: sequelize.literal('numberOfSeries + 1') },
+            { where: { id: study.id }, transaction: t }
+          );
+        }
+
+        // Process each file in the series
+        for (const { file, metadata } of files) {
+          // Verify Study Instance UID matches (redundant check for consistency)
+          if (metadata.studyInstanceUID !== study.studyInstanceUID) {
+            errors.push({
+              filename: file.originalname,
+              error: `Study Instance UID ${metadata.studyInstanceUID} does not match the Study ${study.studyInstanceUID}`,
+            });
+            await fs.unlink(file.path).catch((err) => console.error(`Failed to delete file ${file.path}:`, err));
+            continue;
+          }
+
+          // Check for existing instance (already handled above, but kept for safety)
+          let instance = await models.Instance.findOne({
+            where: { sopInstanceUID: metadata.sopInstanceUID },
+            transaction: t,
+          });
+
+          if (instance) {
+            // Update existing instance
+            await models.Instance.update(
+              {
+                seriesId: series.id,
+                instanceNumber: metadata.instanceNumber,
+                fileKey: file.filename,
                 updatedAt: new Date(),
-              });
-              await patient.save({ session });
+              },
+              { where: { sopInstanceUID: metadata.sopInstanceUID }, transaction: t }
+            );
+            // Delete the old file if it exists
+            const oldDicomFile = await models.DicomFile.findOne({
+              where: { sopInstanceUID: metadata.sopInstanceUID },
+              transaction: t,
+            });
+            if (oldDicomFile && oldDicomFile.filePath) {
+              await fs.unlink(oldDicomFile.filePath).catch((err) => console.error(`Failed to delete old file ${oldDicomFile.filePath}:`, err));
             }
-
-            // Find or create Study
-            let study = await Study.findOne({ studyInstanceUID: metadata.studyInstanceUID }).session(session);
-            if (!study) {
-              study = new Study({
-                patient: patient._id,
-                studyInstanceUID: metadata.studyInstanceUID,
-                studyID: metadata.studyID,
-                studyDate: metadata.studyDate,
-                studyTime: metadata.studyTime,
-                studyDescription: metadata.studyDescription,
-                modalitiesInStudy: [metadata.modality].filter(Boolean),
-                numberOfSeries: 0,
-                numberOfInstances: 0,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              });
-              await study.save({ session });
-            }
-
-            // Find or create Series
-            let series = await Series.findOne({ seriesInstanceUID: metadata.seriesInstanceUID }).session(session);
-            if (!series) {
-              series = new Series({
-                study: study._id,
-                seriesInstanceUID: metadata.seriesInstanceUID,
-                seriesNumber: metadata.seriesNumber,
-                seriesDate: metadata.seriesDate,
-                seriesTime: metadata.seriesTime,
-                seriesDescription: metadata.seriesDescription,
-                modality: metadata.modality,
-                bodyPartExamined: metadata.bodyPartExamined,
-                numberOfInstances: 0,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              });
-              await series.save({ session });
-
-              await Study.findByIdAndUpdate(
-                study._id,
-                { $inc: { numberOfSeries: 1 } },
-                { session }
-              );
-            }
-
-            // Check for existing instance
-            const existingInstance = await Instance.findOne({ sopInstanceUID: metadata.sopInstanceUID }).session(session);
-            if (existingInstance) {
-              throw new Error(`Instance with SOP Instance UID ${metadata.sopInstanceUID} already exists`);
-            }
-
-            // Create Instance record
-            const instance = new Instance({
-              series: series._id,
+          } else {
+            // Create new instance
+            instance = await models.Instance.create({
+              seriesId: series.id,
               sopInstanceUID: metadata.sopInstanceUID,
               instanceNumber: metadata.instanceNumber,
               fileKey: file.filename,
               createdAt: new Date(),
               updatedAt: new Date(),
-            });
-            await instance.save({ session });
+            }, { transaction: t });
+          }
 
-            // Create DicomFile record
-            const dicomFile = new DicomFile({
-              patient: patient._id,
-              study: study._id,
-              series: series._id,
-              sopInstanceUID: metadata.sopInstanceUID,
-              sopClassUID: metadata.sopClassUID,
-              transferSyntaxUID: metadata.transferSyntaxUID,
-              filename: file.filename,
-              originalFilename: file.originalname,
-              filePath: file.path,
-              fileSize: file.size,
-              instanceNumber: metadata.instanceNumber,
-              imageType: metadata.imageType ? metadata.imageType.split('\\') : [],
-              photometricInterpretation: metadata.photometricInterpretation,
-              rows: metadata.rows,
-              columns: metadata.columns,
-              bitsAllocated: metadata.bitsAllocated,
-              bitsStored: metadata.bitsStored,
-              highBit: metadata.highBit,
-              pixelRepresentation: metadata.pixelRepresentation,
-              samplesPerPixel: metadata.samplesPerPixel,
-              imageDate: metadata.imageDate,
-              imageTime: metadata.imageTime,
-              acquisitionDate: metadata.acquisitionDate,
-              acquisitionTime: metadata.acquisitionTime,
-              windowCenter: metadata.windowCenter ? metadata.windowCenter.split('\\').map(Number) : [],
-              windowWidth: metadata.windowWidth ? metadata.windowWidth.split('\\').map(Number) : [],
-              pixelSpacing: metadata.pixelSpacing ? metadata.pixelSpacing.split('\\').map(Number) : [],
-              sliceThickness: metadata.sliceThickness,
-              sliceLocation: metadata.sliceLocation,
-              imagePosition: metadata.imagePosition ? metadata.imagePosition.split('\\').map(Number) : [],
-              imageOrientation: metadata.imageOrientation ? metadata.imageOrientation.split('\\').map(Number) : [],
-              processingStatus: 'completed',
-              metadata: {
-                patientName: metadata.patientName,
-                studyDescription: metadata.studyDescription,
-                seriesDescription: metadata.seriesDescription,
-                modality: metadata.modality,
-              },
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            });
+          // Update or create DicomFile record
+          await models.DicomFile.upsert({
+            patientId: patient.id,
+            studyId: study.id,
+            seriesId: series.id,
+            sopInstanceUID: metadata.sopInstanceUID,
+            sopClassUID: metadata.sopClassUID,
+            transferSyntaxUID: metadata.transferSyntaxUID,
+            filename: file.filename,
+            originalFilename: file.originalname,
+            filePath: file.path,
+            fileSize: file.size,
+            instanceNumber: metadata.instanceNumber,
+            imageType: metadata.imageType ? metadata.imageType.split('\\') : [],
+            photometricInterpretation: metadata.photometricInterpretation,
+            rows: metadata.rows,
+            columns: metadata.columns,
+            bitsAllocated: metadata.bitsAllocated,
+            bitsStored: metadata.bitsStored,
+            highBit: metadata.highBit,
+            pixelRepresentation: metadata.pixelRepresentation,
+            samplesPerPixel: metadata.samplesPerPixel,
+            imageDate: metadata.imageDate,
+            imageTime: metadata.imageTime,
+            acquisitionDate: metadata.acquisitionDate,
+            acquisitionTime: metadata.acquisitionTime,
+            windowCenter: metadata.windowCenter ? metadata.windowCenter.split('\\').map(Number) : [],
+            windowWidth: metadata.windowWidth ? metadata.windowWidth.split('\\').map(Number) : [],
+            pixelSpacing: metadata.pixelSpacing ? metadata.pixelSpacing.split('\\').map(Number) : [],
+            sliceThickness: metadata.sliceThickness,
+            sliceLocation: metadata.sliceLocation,
+            imagePosition: metadata.imagePosition ? metadata.imagePosition.split('\\').map(Number) : [],
+            imageOrientation: metadata.imageOrientation ? metadata.imageOrientation.split('\\').map(Number) : [],
+            processingStatus: 'completed',
+            metadata: {
+              patientName: metadata.patientName,
+              studyDescription: metadata.studyDescription,
+              seriesDescription: metadata.seriesDescription,
+              modality: metadata.modality,
+            },
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }, { transaction: t });
 
-            await dicomFile.save({ session });
-
-            // Update counts
-            await Series.findByIdAndUpdate(
-              series._id,
-              { $inc: { numberOfInstances: 1 } },
-              { session }
-            );
-            await Study.findByIdAndUpdate(
-              study._id,
-              { $inc: { numberOfInstances: 1 } },
-              { session }
-            );
-            await Patient.findByIdAndUpdate(
-              patient._id,
-              {
-                $inc: {
-                  totalStudies: study.isNew ? 1 : 0,
-                  totalSeries: series.isNew ? 1 : 0,
-                  totalInstances: 1,
-                },
-                updatedAt: new Date(),
-              },
-              { session }
-            );
-
+          // Update counts if new instance
+          if (!instance.isNewRecord) {
+            console.log(`Updated existing instance with SOP Instance UID ${metadata.sopInstanceUID}`);
             uploadResults.push({
               filename: file.originalname,
               sopInstanceUID: metadata.sopInstanceUID,
               studyInstanceUID: metadata.studyInstanceUID,
               seriesInstanceUID: metadata.seriesInstanceUID,
-              status: 'success',
+              status: 'updated',
             });
-          });
-        } catch (error) {
-          console.error(`Error processing file ${file.originalname}:`, error);
-          errors.push({ filename: file.originalname, error: error.message });
-          await fs.promises.unlink(file.path).catch((err) => console.error(`Failed to delete file ${file.path}:`, err));
-        } finally {
-          session.endSession();
+          } else {
+            await models.Series.update(
+              { numberOfInstances: sequelize.literal('numberOfInstances + 1') },
+              { where: { id: series.id }, transaction: t }
+            );
+            await models.Study.update(
+              { numberOfInstances: sequelize.literal('numberOfInstances + 1') },
+              { where: { id: study.id }, transaction: t }
+            );
+            await models.Patient.update(
+              {
+                totalStudies: sequelize.literal(`totalStudies + ${study.isNewRecord ? 1 : 0}`),
+                totalSeries: sequelize.literal(`totalSeries + ${series.isNewRecord ? 1 : 0}`),
+                totalInstances: sequelize.literal('totalInstances + 1'),
+                updatedAt: new Date(),
+              },
+              { where: { id: patient.id }, transaction: t }
+            );
+            uploadResults.push({
+              filename: file.originalname,
+              sopInstanceUID: metadata.sopInstanceUID,
+              studyInstanceUID: metadata.studyInstanceUID,
+              seriesInstanceUID: metadata.seriesInstanceUID,
+              status: 'created',
+            });
+          }
         }
-      } catch (error) {
-        console.error(`Error processing file ${file.originalname}:`, error);
-        errors.push({ filename: file.originalname, error: error.message });
-        await fs.promises.unlink(file.path).catch((err) => console.error(`Failed to delete file ${file.path}:`, err));
       }
-    }
 
-    return res.json({
-      success: uploadResults.length > 0,
-      message: `Processed ${uploadResults.length} files successfully`,
-      uploadResults,
-      errors: errors.length > 0 ? errors : undefined,
-    });
+      await t.commit();
+      return res.json({
+        success: uploadResults.length > 0,
+        message: `Processed ${uploadResults.length} files successfully (${uploadResults.filter(r => r.status === 'created').length} created, ${uploadResults.filter(r => r.status === 'updated').length} updated)`,
+        uploadResults,
+        metadata: firstValidMetadata,
+        errors: errors.length > 0 ? errors : undefined,
+      });
+    } catch (error) {
+      await t.rollback();
+      console.error('Upload endpoint error:', error);
+      return res.status(500).json({ success: false, message: `Server error during upload: ${error.message}`, errors });
+    }
   } catch (error) {
     console.error('Upload endpoint error:', error);
     return res.status(500).json({ success: false, message: `Server error during upload: ${error.message}` });
+  }
+});
+
+// Create study endpoint
+app.post('/api/dicom/study/create', authenticateToken, async (req, res) => {
+  const {
+    patientName,
+    patientID,
+    patientBirthDate,
+    patientSex,
+    patientPhone,
+    patientEmail,
+    patientAddress,
+    studyID,
+    studyDate,
+    studyTime,
+    studyDescription,
+    modality,
+    accessionNumber,
+    bodyPartExamined,
+    referringPhysician,
+    studyPriority,
+    studyStatus,
+    comments,
+    dicomFileIds,
+  } = req.body;
+
+  if (!patientName || !patientID) {
+    return res.status(400).json({ success: false, message: 'Patient Name and Patient ID are required' });
+  }
+
+  const t = await sequelize.transaction();
+
+  try {
+    let patient = await models.Patient.findOne({
+      where: { patientID },
+      transaction: t,
+    });
+
+    if (!patient) {
+      patient = await models.Patient.create({
+        patientID,
+        patientName,
+        patientBirthDate: patientBirthDate ? new Date(patientBirthDate) : null,
+        patientSex: patientSex || '',
+        patientPhone: patientPhone || '',
+        patientEmail: patientEmail || '',
+        patientAddress: patientAddress || '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }, { transaction: t });
+    }
+
+    const studyInstanceUID = `1.2.840.10008.${Date.now()}.${Math.random().toString(36).substr(2, 9)}`;
+
+    const study = await models.Study.create({
+      patientId: patient.id,
+      studyInstanceUID,
+      studyID: studyID || `STU${Date.now().toString().slice(-6)}${Math.random().toString(36).substr(2, 4).toUpperCase()}`,
+      studyDate: studyDate ? new Date(studyDate) : new Date(),
+      studyTime: studyTime || new Date().toTimeString().split(' ')[0].slice(0, 5),
+      studyDescription: studyDescription || '',
+      modalitiesInStudy: modality ? [modality] : [],
+      accessionNumber: accessionNumber || `ACC${new Date().toISOString().slice(0, 10).replace(/-/g, '')}${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+      bodyPartExamined: bodyPartExamined || '',
+      referringPhysician: referringPhysician || '',
+      studyPriority: studyPriority || 'routine',
+      studyStatus: studyStatus || 'scheduled',
+      comments: comments || '',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }, { transaction: t });
+
+    // Associate uploaded DICOM files with the study
+    if (dicomFileIds && Array.isArray(dicomFileIds) && dicomFileIds.length > 0) {
+      const dicomFiles = await models.DicomFile.findAll({
+        where: { sopInstanceUID: { [Op.in]: dicomFileIds } },
+        transaction: t,
+      });
+
+      for (const dicomFile of dicomFiles) {
+        const instance = await models.Instance.findOne({
+          where: { sopInstanceUID: dicomFile.sopInstanceUID },
+          transaction: t,
+        });
+
+        if (instance) {
+          const series = await models.Series.findByPk(instance.seriesId, { transaction: t });
+          if (series) {
+            await series.update({ studyId: study.id }, { transaction: t });
+            await dicomFile.update({ studyId: study.id }, { transaction: t });
+
+            // Update counts
+            await models.Study.update(
+              {
+                numberOfSeries: sequelize.literal('numberOfSeries + 1'),
+                numberOfInstances: sequelize.literal('numberOfInstances + 1'),
+              },
+              { where: { id: study.id }, transaction: t }
+            );
+            await models.Series.update(
+              { numberOfInstances: sequelize.literal('numberOfInstances + 1') },
+              { where: { id: series.id }, transaction: t }
+            );
+          }
+        }
+      }
+
+      await models.Patient.update(
+        {
+          totalStudies: sequelize.literal('totalStudies + 1'),
+          totalSeries: sequelize.literal(`totalSeries + ${dicomFiles.length}`),
+          totalInstances: sequelize.literal(`totalInstances + ${dicomFiles.length}`),
+          updatedAt: new Date(),
+        },
+        { where: { id: patient.id }, transaction: t }
+      );
+    }
+
+    await t.commit();
+
+    const transformedStudy = {
+      id: study.id,
+      patientName: patient.patientName,
+      patientID: patient.patientID,
+      patientBirthDate: patient.patientBirthDate,
+      patientSex: patient.patientSex,
+      patientPhone: patient.patientPhone,
+      patientEmail: patient.patientEmail,
+      patientAddress: patient.patientAddress,
+      studyID: study.studyID,
+      studyDate: study.studyDate,
+      studyTime: study.studyTime,
+      studyDescription: study.studyDescription,
+      modality: study.modalitiesInStudy ? study.modalitiesInStudy[0] : '',
+      accessionNumber: study.accessionNumber,
+      bodyPartExamined: study.bodyPartExamined,
+      referringPhysician: study.referringPhysician,
+      studyPriority: study.studyPriority,
+      studyStatus: study.studyStatus,
+      comments: study.comments,
+    };
+
+    return res.json({ success: true, message: 'Study created successfully', study: transformedStudy });
+  } catch (error) {
+    await t.rollback();
+    console.error('Error creating study:', error);
+    return res.status(500).json({ success: false, message: `Server error: ${error.message}` });
+  }
+});
+
+// Update study endpoint
+app.put('/api/dicom/study/:studyId', authenticateToken, async (req, res) => {
+  const { studyId } = req.params;
+  const {
+    patientName,
+    patientID,
+    patientBirthDate,
+    patientSex,
+    patientPhone,
+    patientEmail,
+    patientAddress,
+    studyID,
+    studyDate,
+    studyTime,
+    studyDescription,
+    modality,
+    accessionNumber,
+    bodyPartExamined,
+    referringPhysician,
+    studyPriority,
+    studyStatus,
+    comments,
+    dicomFileIds,
+  } = req.body;
+
+  if (!patientName || !patientID) {
+    return res.status(400).json({ success: false, message: 'Patient Name and Patient ID are required' });
+  }
+
+  const t = await sequelize.transaction();
+
+  try {
+    const study = await models.Study.findByPk(studyId, {
+      include: [{ model: models.Patient, as: 'Patient' }],
+      transaction: t,
+    });
+
+    if (!study) {
+      await t.rollback();
+      return res.status(404).json({ success: false, message: 'Study not found' });
+    }
+
+    let patient = await models.Patient.findOne({
+      where: { patientID },
+      transaction: t,
+    });
+
+    if (!patient) {
+      patient = await models.Patient.create({
+        patientID,
+        patientName,
+        patientBirthDate: patientBirthDate ? new Date(patientBirthDate) : null,
+        patientSex: patientSex || '',
+        patientPhone: patientPhone || '',
+        patientEmail: patientEmail || '',
+        patientAddress: patientAddress || '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }, { transaction: t });
+    } else {
+      await patient.update({
+        patientName,
+        patientBirthDate: patientBirthDate ? new Date(patientBirthDate) : null,
+        patientSex: patientSex || '',
+        patientPhone: patientPhone || '',
+        patientEmail: patientEmail || '',
+        patientAddress: patientAddress || '',
+        updatedAt: new Date(),
+      }, { transaction: t });
+    }
+
+    await study.update({
+      patientId: patient.id,
+      studyID: studyID || study.studyID,
+      studyDate: studyDate ? new Date(studyDate) : study.studyDate,
+      studyTime: studyTime || study.studyTime,
+      studyDescription: studyDescription || study.studyDescription,
+      modalitiesInStudy: modality ? [modality] : study.modalitiesInStudy,
+      accessionNumber: accessionNumber || study.accessionNumber,
+      bodyPartExamined: bodyPartExamined || study.bodyPartExamined,
+      referringPhysician: referringPhysician || study.referringPhysician,
+      studyPriority: studyPriority || study.studyPriority,
+      studyStatus: studyStatus || study.studyStatus,
+      comments: comments || study.comments,
+      updatedAt: new Date(),
+    }, { transaction: t });
+
+    // Update associations with DICOM files
+    if (dicomFileIds && Array.isArray(dicomFileIds) && dicomFileIds.length > 0) {
+      const dicomFiles = await models.DicomFile.findAll({
+        where: { sopInstanceUID: { [Op.in]: dicomFileIds } },
+        transaction: t,
+      });
+
+      for (const dicomFile of dicomFiles) {
+        const instance = await models.Instance.findOne({
+          where: { sopInstanceUID: dicomFile.sopInstanceUID },
+          transaction: t,
+        });
+
+        if (instance) {
+          const series = await models.Series.findByPk(instance.seriesId, { transaction: t });
+          if (series) {
+            await series.update({ studyId: study.id }, { transaction: t });
+            await dicomFile.update({ studyId: study.id }, { transaction: t });
+
+            // Update counts if not already associated
+            const isNewAssociation = series.studyId !== study.id;
+            if (isNewAssociation) {
+              await models.Study.update(
+                {
+                  numberOfSeries: sequelize.literal('numberOfSeries + 1'),
+                  numberOfInstances: sequelize.literal('numberOfInstances + 1'),
+                },
+                { where: { id: study.id }, transaction: t }
+              );
+              await models.Series.update(
+                { numberOfInstances: sequelize.literal('numberOfInstances + 1') },
+                { where: { id: series.id }, transaction: t }
+              );
+            }
+          }
+        }
+      }
+
+      await models.Patient.update(
+        {
+          totalStudies: sequelize.literal('totalStudies + 1'),
+          totalSeries: sequelize.literal(`totalSeries + ${dicomFiles.length}`),
+          totalInstances: sequelize.literal(`totalInstances + ${dicomFiles.length}`),
+          updatedAt: new Date(),
+        },
+        { where: { id: patient.id }, transaction: t }
+      );
+    }
+
+    await t.commit();
+
+    const transformedStudy = {
+      id: study.id,
+      patientName: patient.patientName,
+      patientID: patient.patientID,
+      patientBirthDate: patient.patientBirthDate,
+      patientSex: patient.patientSex,
+      patientPhone: patient.phone,
+      patientEmail: patient.email,
+      patientAddress: patient.address,
+      studyID: study.studyID,
+      studyDate: study.studyDate,
+      studyTime: study.studyTime,
+      studyDescription: study.studyDescription,
+      modality: study.modalitiesInStudy ? study.modalitiesInStudy[0] : '',
+      accessionNumber: study.accessionNumber,
+      bodyPartExamined: study.bodyPartExamined,
+      referringPhysician: study.referringPhysician,
+      studyPriority: study.studyPriority,
+      studyStatus: study.studyStatus,
+      comments: study.comments,
+    };
+
+    return res.json({ success: true, message: 'Study updated successfully', study: transformedStudy });
+  } catch (error) {
+    await t.rollback();
+    console.error('Error updating study:', error);
+    return res.status(500).json({ success: false, message: `Server error: ${error.message}` });
   }
 });
 
@@ -472,13 +905,34 @@ app.post('/api/auth/signup', async (req, res) => {
   } = req.body;
 
   if (!username || !email || !password || !firstName || !lastName) {
-    return res.status(400).json({ success: false, message: 'Required fields are missing' });
+    return res.status(400).json({
+      success: false,
+      message: 'Required fields are missing',
+      errors: [
+        !username && { path: 'username', msg: 'Username is required' },
+        !email && { path: 'email', msg: 'Email is required' },
+        !password && { path: 'password', msg: 'Password is required' },
+        !firstName && { path: 'firstName', msg: 'First name is required' },
+        !lastName && { path: 'lastName', msg: 'Last name is required' },
+      ].filter(Boolean),
+    });
   }
 
   try {
-    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+    const existingUser = await models.User.findOne({
+      where: {
+        [Op.or]: [{ email }, { username }],
+      },
+    });
     if (existingUser) {
-      return res.status(409).json({ success: false, message: 'Email or username already exists' });
+      return res.status(409).json({
+        success: false,
+        message: 'Email or username already exists',
+        errors: [
+          existingUser.email === email && { path: 'email', msg: 'Email already exists' },
+          existingUser.username === username && { path: 'username', msg: 'Username already exists' },
+        ].filter(Boolean),
+      });
     }
 
     let twoFactorSecret = null;
@@ -487,7 +941,11 @@ app.post('/api/auth/signup', async (req, res) => {
       twoFactorSecret = secret.base32;
     }
 
-    const profile = {
+    const user = await models.User.create({
+      username,
+      email,
+      password,
+      role: role || 'doctor',
       firstName,
       lastName,
       phone: phone || '',
@@ -495,35 +953,33 @@ app.post('/api/auth/signup', async (req, res) => {
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
       gender: gender || 'prefer-not-to-say',
       avatarUrl: avatarUrl || '',
-    };
-
-    const user = new User({
-      username,
-      email,
-      password, // Will be hashed in pre-save hook
-      role: role || 'doctor',
-      profile,
       twoFactorEnabled: twoFactorEnabled || false,
       twoFactorSecret,
       isActive: true,
     });
 
-    await user.save();
-
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '30d' });
+    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
     const userData = {
-      _id: user._id,
+      _id: user.id,
       username: user.username,
       email: user.email,
       role: user.role,
-      profile: user.profile,
+      profile: {
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        department: user.department,
+        dateOfBirth: user.dateOfBirth,
+        gender: user.gender,
+        avatarUrl: user.avatarUrl,
+      },
     };
 
     return res.json({ success: true, token, user: userData });
   } catch (error) {
     console.error('Signup error:', error);
-    return res.status(500).json({ success: false, message: 'Server error during signup' });
+    return res.status(500).json({ success: false, message: `Server error during signup: ${error.message}` });
   }
 });
 
@@ -536,35 +992,35 @@ app.post('/api/auth/login', async (req, res) => {
   }
 
   try {
-    const user = await User.findOne({ email });
-
+    const user = await models.User.findOne({ where: { email } });
     if (!user) {
       return res.status(400).json({ success: false, message: 'Invalid email or password.' });
     }
 
     const isMatch = await user.comparePassword(password);
-
     if (!isMatch) {
       return res.status(400).json({ success: false, message: 'Invalid email or password.' });
     }
 
-    // Update lastLogin
-    user.lastLogin = Date.now();
-    await user.save();
-
-    // Send login notification (if configured)
+    await user.update({ lastLogin: new Date() });
     await sendLoginNotification(user.email, user.username);
 
-    // Generate token (expires in 30 days to match potential remember options, but adjust as needed)
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '30d' });
+    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-    // Prepare user data
     const userData = {
-      _id: user._id,
+      _id: user.id,
       username: user.username,
       email: user.email,
       role: user.role,
-      profile: user.profile,
+      profile: {
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        department: user.department,
+        dateOfBirth: user.dateOfBirth,
+        gender: user.gender,
+        avatarUrl: user.avatarUrl,
+      },
     };
 
     return res.json({ success: true, token, user: userData });
@@ -574,7 +1030,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Notify login endpoint (placeholder - add actual email sending logic if needed, e.g., using nodemailer)
+// Notify login endpoint
 app.post('/api/auth/notify-login', async (req, res) => {
   const { email } = req.body;
 
@@ -583,12 +1039,7 @@ app.post('/api/auth/notify-login', async (req, res) => {
   }
 
   try {
-    // Placeholder for sending notifications (e.g., to admin and user)
     console.log(`Sending login notification for user: ${email}`);
-    // TODO: Integrate email service like nodemailer here
-    // Example: await sendEmail(adminEmail, 'Login Notification', `User ${email} has logged in.`);
-    // await sendEmail(email, 'Login Confirmation', 'You have successfully logged in.');
-
     return res.json({ success: true, message: 'Notifications sent' });
   } catch (error) {
     console.error('Notify login error:', error);
@@ -596,50 +1047,55 @@ app.post('/api/auth/notify-login', async (req, res) => {
   }
 });
 
-// Fetch full study details with series and instances
+// Fetch study details
 app.get('/api/dicom/study/:studyId', authenticateToken, async (req, res) => {
   try {
     const { studyId } = req.params;
-    const study = await Study.findById(studyId).populate('patient');
+    const study = await models.Study.findByPk(studyId, {
+      include: [{ model: models.Patient, as: 'Patient' }],
+    });
     if (!study) {
       return res.status(404).json({ success: false, message: 'Study not found' });
     }
-    const seriesList = await Series.find({ study: studyId });
+
+    const seriesList = await models.Series.findAll({ where: { studyId } });
     const fullSeries = await Promise.all(seriesList.map(async (series) => {
-      const instances = await Instance.find({ series: series._id });
+      const instances = await models.Instance.findAll({ where: { seriesId: series.id } });
       const fullInstances = await Promise.all(instances.map(async (inst) => {
-        const dicomFile = await DicomFile.findOne({ sopInstanceUID: inst.sopInstanceUID });
+        const dicomFile = await models.DicomFile.findOne({ where: { sopInstanceUID: inst.sopInstanceUID } });
         return {
-          ...inst.toObject(),
-          filePath: dicomFile ? `/uploads/dicom/${dicomFile.filename}` : null,
+          ...inst.toJSON(),
+          filePath: dicomFile ? `/Uploads/dicom/${dicomFile.filename}` : null,
           originalFilename: dicomFile ? dicomFile.originalFilename : null,
         };
       }));
       return {
-        ...series.toObject(),
-        id: series._id,
+        ...series.toJSON(),
+        id: series.id,
         instances: fullInstances,
       };
     }));
+
     const transformedStudy = {
-      id: study._id,
-      patientName: study.patient.patientName,
-      patientID: study.patient.patientID,
+      id: study.id,
+      patientName: study.Patient ? study.Patient.patientName || 'Unknown' : 'Unknown',
+      patientID: study.Patient ? study.Patient.patientID || 'Unknown' : 'Unknown',
       studyDate: study.studyDate,
       studyTime: study.studyTime,
-      modality: study.modalitiesInStudy.join(', '),
+      modality: study.modalitiesInStudy ? study.modalitiesInStudy.join(', ') : '',
       studyDescription: study.studyDescription,
       accessionNumber: study.accessionNumber || '',
       series: fullSeries,
     };
+
     res.json({ success: true, study: transformedStudy });
   } catch (error) {
     console.error('Error fetching study details:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: `Server error: ${error.message}` });
   }
 });
 
-// Other routes (same as previous, included for completeness)
+// Fetch studies with filtering and pagination
 app.get('/api/dicom/studies', authenticateToken, async (req, res) => {
   try {
     const {
@@ -652,81 +1108,66 @@ app.get('/api/dicom/studies', authenticateToken, async (req, res) => {
       limit = 50,
     } = req.query;
 
-    const filter = {};
+    const where = {};
     if (patientName) {
-      filter['patient.patientName'] = new RegExp(patientName, 'i');
+      where['$Patient.patientName$'] = { [Op.like]: `%${patientName}%` };
     }
     if (patientID) {
-      filter['patient.patientID'] = new RegExp(patientID, 'i');
+      where['$Patient.patientID$'] = { [Op.like]: `%${patientID}%` };
     }
     if (studyDate) {
       const startDate = new Date(studyDate);
       const endDate = new Date(studyDate);
       endDate.setDate(endDate.getDate() + 1);
-      filter.studyDate = { $gte: startDate, $lt: endDate };
+      where.studyDate = { [Op.between]: [startDate, endDate] };
     }
     if (modality) {
-      filter.modalitiesInStudy = modality;
+      where.modalitiesInStudy = { [Op.contains]: [modality] };
     }
     if (accessionNumber) {
-      filter.accessionNumber = new RegExp(accessionNumber, 'i');
+      where.accessionNumber = { [Op.like]: `%${accessionNumber}%` };
     }
 
-    const studies = await Study.aggregate([
-      {
-        $lookup: {
-          from: 'patients',
-          localField: 'patient',
-          foreignField: '_id',
-          as: 'patient',
-        },
-      },
-      {
-        $unwind: '$patient',
-      },
-      {
-        $match: filter,
-      },
-      {
-        $lookup: {
-          from: 'series',
-          localField: '_id',
-          foreignField: 'study',
-          as: 'series',
-        },
-      },
-      {
-        $sort: { studyDate: -1, 'patient.patientName': 1 },
-      },
-      {
-        $skip: (page - 1) * parseInt(limit),
-      },
-      {
-        $limit: parseInt(limit),
-      },
-    ]);
+    let orderClause = [['studyDate', 'DESC']];
+    try {
+      await models.Patient.findOne({ attributes: ['patientName'] });
+      orderClause.push([{ model: models.Patient, as: 'Patient' }, 'patientName', 'ASC']);
+    } catch (error) {
+      console.warn('Warning: patientName column not found, falling back to studyDate ordering only', error.message);
+    }
 
-    const transformedStudies = studies.map((study) => ({
-      id: study._id,
-      patientName: study.patient.patientName,
-      patientID: study.patient.patientID,
+    const studies = await models.Study.findAndCountAll({
+      where,
+      include: [
+        { model: models.Patient, as: 'Patient', required: true },
+        { model: models.Series, as: 'Series', required: false },
+      ],
+      order: orderClause,
+      limit: parseInt(limit),
+      offset: (parseInt(page) - 1) * parseInt(limit),
+    });
+
+    const transformedStudies = studies.rows.map((study) => ({
+      id: study.id,
+      patientName: study.Patient ? study.Patient.patientName || 'Unknown' : 'Unknown',
+      patientID: study.Patient ? study.Patient.patientID || 'Unknown' : 'Unknown',
       studyDate: study.studyDate,
       studyTime: study.studyTime,
-      modality: study.modalitiesInStudy[0] || 'Unknown',
+      modality: study.modalitiesInStudy ? study.modalitiesInStudy[0] || 'Unknown' : 'Unknown',
       studyDescription: study.studyDescription,
       accessionNumber: study.accessionNumber || '',
       studyInstanceUID: study.studyInstanceUID,
       numberOfSeries: study.numberOfSeries,
       numberOfImages: study.numberOfInstances,
-      series: study.series.map((series) => ({
-        id: series._id,
+      series: study.Series ? study.Series.map((series) => ({
+        id: series.id,
         seriesNumber: series.seriesNumber,
         seriesDescription: series.seriesDescription,
         modality: series.modality,
         seriesInstanceUID: series.seriesInstanceUID,
         numberOfInstances: series.numberOfInstances,
         instances: [],
-      })),
+      })) : [],
     }));
 
     res.json({
@@ -735,7 +1176,7 @@ app.get('/api/dicom/studies', authenticateToken, async (req, res) => {
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
-        total: studies.length,
+        total: studies.count,
       },
     });
   } catch (error) {

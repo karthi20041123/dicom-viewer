@@ -1,79 +1,140 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
 
-const patientSchema = new mongoose.Schema({
-  // DICOM Standard Patient Module
-  patientID: { type: String, required: true, unique: true }, // (0010,0020)
-  patientName: { type: String, required: true }, // (0010,0010)
-  patientBirthDate: Date, // (0010,0030)
-  patientSex: { 
-    type: String, 
-    enum: ['M', 'F', 'O', ''], 
-    default: '' 
-  }, // (0010,0040)
-  patientBirthTime: String, // (0010,0032)
-  patientAge: String, // (0010,1010)
-  patientWeight: Number, // (0010,1030)
-  patientSize: Number, // (0010,1020)
-  patientAddress: String, // (0010,1040)
-  patientComments: String, // (0010,4000)
-  
-  // Additional patient information
-  patientInsurancePlanCodeSequence: String,
-  issuerOfPatientID: String, // (0010,0021)
-  otherPatientIDs: [String], // (0010,1000)
-  otherPatientNames: [String], // (0010,1001)
-  ethnicGroup: String, // (0010,2160)
-  occupation: String, // (0010,2180)
-  additionalPatientHistory: String, // (0010,21B0)
-  
-  // System fields
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now },
-  isActive: { type: Boolean, default: true },
-  
-  // Optional fields for PACS system management
-  mrn: String, // Medical Record Number
-  accountNumber: String,
-  
-  // Statistics
-  totalStudies: { type: Number, default: 0 },
-  totalSeries: { type: Number, default: 0 },
-  totalInstances: { type: Number, default: 0 }
-});
+export default (sequelize) => {
+  const Patient = sequelize.define('Patient', {
+    id: {
+      type: DataTypes.BIGINT,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    patientID: {
+      type: DataTypes.STRING(255),
+      allowNull: false,
+      unique: true,
+    },
+    patientName: {
+      type: DataTypes.STRING(255),
+      allowNull: false,
+    },
+    patientBirthDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+    patientSex: {
+      type: DataTypes.ENUM('M', 'F', 'O', ''),
+      defaultValue: '',
+    },
+    patientBirthTime: {
+      type: DataTypes.STRING(10),
+      allowNull: true,
+    },
+    patientAge: {
+      type: DataTypes.STRING(10),
+      allowNull: true,
+    },
+    patientWeight: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+    },
+    patientSize: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+    },
+    patientAddress: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    patientComments: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    patientInsurancePlanCodeSequence: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    issuerOfPatientID: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    otherPatientIDs: {
+      type: DataTypes.JSON,
+      allowNull: true,
+    },
+    otherPatientNames: {
+      type: DataTypes.JSON,
+      allowNull: true,
+    },
+    ethnicGroup: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    occupation: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    additionalPatientHistory: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    mrn: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    accountNumber: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    totalStudies: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
+    totalSeries: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
+    totalInstances: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
+    isActive: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+    },
+    createdAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+  }, {
+    tableName: 'patients',
+    indexes: [
+      { fields: ['patientID'] },
+      { fields: ['patientName'] },
+      { fields: ['patientBirthDate'] },
+      { fields: ['patientSex'] },
+      { fields: ['createdAt'] },
+    ],
+  });
 
-// Indexes for better query performance
-patientSchema.index({ patientID: 1 });
-patientSchema.index({ patientName: 1 });
-patientSchema.index({ patientBirthDate: 1 });
-patientSchema.index({ patientSex: 1 });
-patientSchema.index({ createdAt: -1 });
+  Patient.prototype.calculateAge = function () {
+    if (!this.patientBirthDate) return null;
+    const today = new Date();
+    const birthDate = new Date(this.patientBirthDate);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
 
-// Update the updatedAt field before saving
-patientSchema.pre('save', function(next) {
-  this.updatedAt = Date.now();
-  next();
-});
+  Patient.associate = (models) => {
+    Patient.hasMany(models.Study, { foreignKey: 'patientId', as: 'Studies' });
+    Patient.hasMany(models.DicomFile, { foreignKey: 'patientId', as: 'DicomFiles' });
+  };
 
-// Virtual for formatted patient name
-patientSchema.virtual('formattedName').get(function() {
-  return this.patientName || 'Unknown Patient';
-});
-
-// Method to calculate age from birth date
-patientSchema.methods.calculateAge = function() {
-  if (!this.patientBirthDate) return null;
-  
-  const today = new Date();
-  const birthDate = new Date(this.patientBirthDate);
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-  
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  
-  return age;
+  return Patient;
 };
-
-const Patient = mongoose.models.Patient || mongoose.model("Patient", patientSchema);
-export default Patient;

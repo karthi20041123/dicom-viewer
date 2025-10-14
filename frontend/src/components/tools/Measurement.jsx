@@ -16,11 +16,10 @@ const TOOL_OPTIONS = [
 const MeasurementTool = ({
   containerWidth = 900,
   containerHeight = 550,
-  pixelSpacing = [1, 1], // [rowSpacing, columnSpacing] in mm/pixel
-  viewportScale = 1,
-  viewport = null, // Pass the cornerstone viewport object for accurate transformations
-  imageColumns = 512,
-  imageRows = 512,
+  pixelSpacings = {},
+  viewports = {},
+  imageMetadata = {},
+  layout = "2x2",
 }) => {
   const canvasRef = useRef(null);
   const fabricCanvas = useRef(null);
@@ -40,32 +39,42 @@ const MeasurementTool = ({
     fabricCanvas.current.setWidth(containerWidth);
     fabricCanvas.current.setHeight(containerHeight);
 
+    const [rows, cols] = layout.split("x").map(Number);
+
+    const getViewerInfo = (canvasX, canvasY) => {
+      const colWidth = containerWidth / cols;
+      const rowHeight = containerHeight / rows;
+      const col = Math.floor(canvasX / colWidth);
+      const row = Math.floor(canvasY / rowHeight);
+      const index = row * cols + col;
+      if (index >= rows * cols) return null;
+      const localX = canvasX - col * colWidth;
+      const localY = canvasY - row * rowHeight;
+      return { index, localX, localY, colWidth, rowHeight };
+    };
+
     // Accurate coordinate transformation from canvas to image space, matching Cornerstone's canvasToPixel
     const canvasToImageCoords = (canvasX, canvasY) => {
-      if (!viewport) {
-        // Fallback if viewport not available
-        return {
-          x: canvasX / viewportScale,
-          y: canvasY / viewportScale
-        };
-      }
-
-      const centerX = containerWidth / 2;
-      const centerY = containerHeight / 2;
-
-      let relativeX = canvasX - centerX;
-      let relativeY = canvasY - centerY;
+      const info = getViewerInfo(canvasX, canvasY);
+      if (!info) return { x: 0, y: 0 };
+      const { index, localX, localY, colWidth, rowHeight } = info;
+      const vp = viewports[index] || null;
+      if (!vp) return { x: localX, y: localY };
+      const centerX = colWidth / 2;
+      const centerY = rowHeight / 2;
+      let relativeX = localX - centerX;
+      let relativeY = localY - centerY;
 
       // Apply flips
-      if (viewport.hflip) {
+      if (vp.hflip) {
         relativeX = -relativeX;
       }
-      if (viewport.vflip) {
+      if (vp.vflip) {
         relativeY = -relativeY;
       }
 
       // Apply rotation
-      const angleRadians = viewport.rotation * (Math.PI / 180);
+      const angleRadians = vp.rotation * (Math.PI / 180);
       const cosA = Math.cos(angleRadians);
       const sinA = Math.sin(angleRadians);
 
@@ -73,34 +82,39 @@ const MeasurementTool = ({
       const newRelativeY = relativeX * sinA + relativeY * cosA;
 
       // Apply scale and translation, adjusted for image dimensions
-      const imageX = (newRelativeX / viewport.scale) + (imageColumns / 2) + (viewport.translation.x / viewport.scale);
-      const imageY = (newRelativeY / viewport.scale) + (imageRows / 2) + (viewport.translation.y / viewport.scale);
+      const ic = imageMetadata[index]?.imageColumns || 512;
+      const ir = imageMetadata[index]?.imageRows || 512;
+      const scale = vp.scale || 1;
+      const imageX = (newRelativeX / scale) + (ic / 2) + (vp.translation?.x / scale || 0);
+      const imageY = (newRelativeY / scale) + (ir / 2) + (vp.translation?.y / scale || 0);
 
       return { x: imageX, y: imageY };
     };
 
     // Accurate distance calculation in mm using proper pixel spacing
     const calculateDistanceMm = (point1, point2) => {
+      const info1 = getViewerInfo(point1.x, point1.y);
+      const info2 = getViewerInfo(point2.x, point2.y);
+      if (!info1 || !info2) return 0;
       const img1 = canvasToImageCoords(point1.x, point1.y);
       const img2 = canvasToImageCoords(point2.x, point2.y);
-      
+      if (info1.index !== info2.index) {
+        console.warn("Cross-viewer measurement may not be accurate");
+      }
+      const ps = pixelSpacings[info1.index] || [1, 1];
       const deltaX = img2.x - img1.x;
       const deltaY = img2.y - img1.y;
-      
-      // DICOM pixel spacing: [0] = row spacing (mm/pixel), [1] = column spacing (mm/pixel)
-      // deltaX corresponds to columns, deltaY corresponds to rows
-      const mmX = deltaX * (pixelSpacing[1] || 1); // column spacing
-      const mmY = deltaY * (pixelSpacing[0] || 1); // row spacing
-      
+      const mmX = deltaX * ps[1];
+      const mmY = deltaY * ps[0];
       return Math.sqrt(mmX * mmX + mmY * mmY);
     };
 
     // Calculate area in mm² using proper pixel spacing
     const calculateAreaMm2 = (points) => {
-      // Convert all points to image coordinates first
-      const imagePoints = points.map(p => canvasToImageCoords(p.x, p.y));
-      
-      // Calculate area using shoelace formula
+      if (points.length === 0) return 0;
+      const info1 = getViewerInfo(points[0].x, points[0].y);
+      if (!info1) return 0;
+      const imagePoints = points.map((p) => canvasToImageCoords(p.x, p.y));
       let area = 0;
       for (let i = 0; i < imagePoints.length; i++) {
         const j = (i + 1) % imagePoints.length;
@@ -108,39 +122,45 @@ const MeasurementTool = ({
         area -= imagePoints[j].x * imagePoints[i].y;
       }
       area = Math.abs(area) / 2;
-      
-      // Convert to mm² using pixel spacing
-      const pixelAreaMm2 = (pixelSpacing[0] || 1) * (pixelSpacing[1] || 1);
+      const ps = pixelSpacings[info1.index] || [1, 1];
+      const pixelAreaMm2 = ps[0] * ps[1];
       return area * pixelAreaMm2;
     };
 
     // Scale-invariant styling functions
-    const getScaleInvariantFontSize = (baseFontSize = 14) => {
-      return Math.max(baseFontSize / Math.max(viewportScale, 0.5), 10);
+    const getScaleInvariantFontSize = (baseFontSize = 14, index = 0) => {
+      const scale = viewports[index]?.scale || 1;
+      return Math.max(baseFontSize / Math.max(scale, 0.5), 10);
     };
 
-    const getScaleInvariantRadius = (baseRadius = 4) => {
-      return Math.max(baseRadius / Math.max(viewportScale, 0.5), 2);
+    const getScaleInvariantRadius = (baseRadius = 4, index = 0) => {
+      const scale = viewports[index]?.scale || 1;
+      return Math.max(baseRadius / Math.max(scale, 0.5), 2);
     };
 
-    const getScaleInvariantStrokeWidth = (baseWidth = 2) => {
-      return Math.max(baseWidth / Math.max(viewportScale, 0.5), 1);
+    const getScaleInvariantStrokeWidth = (baseWidth = 2, index = 0) => {
+      const scale = viewports[index]?.scale || 1;
+      return Math.max(baseWidth / Math.max(scale, 0.5), 1);
     };
 
     const onClick = (opt) => {
       const pointer = fabricCanvas.current.getPointer(opt.e);
       const newPoint = { x: pointer.x, y: pointer.y };
-      
+      const info = getViewerInfo(newPoint.x, newPoint.y);
+      if (!info) return;
+      const index = info.index;
+
       const circle = new fabric.Circle({
         left: newPoint.x,
         top: newPoint.y,
-        radius: getScaleInvariantRadius(),
+        radius: getScaleInvariantRadius(4, index),
         fill: "red",
         originX: "center",
         originY: "center",
         selectable: false,
         evented: false,
         baseRadius: 4,
+        associatedIndex: index,
       });
       fabricCanvas.current.add(circle);
       pointsRef.current.push(newPoint);
@@ -148,22 +168,29 @@ const MeasurementTool = ({
       // Line Measurement
       if (tool === "Line" && pointsRef.current.length === 2) {
         const [p1, p2] = pointsRef.current;
+        const index = getViewerInfo(p1.x, p1.y).index;
         const line = new fabric.Line([p1.x, p1.y, p2.x, p2.y], {
           stroke: "blue",
-          strokeWidth: getScaleInvariantStrokeWidth(),
+          strokeWidth: getScaleInvariantStrokeWidth(2, index),
           selectable: false,
           evented: false,
           baseStrokeWidth: 2,
+          associatedIndex: index,
         });
         fabricCanvas.current.add(line);
 
         const distMm = calculateDistanceMm(p1, p2);
         setDistance(distMm);
 
+        const midX = (p1.x + p2.x) / 2;
+        const midY = (p1.y + p2.y) / 2 - 10;
+        const textInfo = getViewerInfo(midX, midY);
+        const textIndex = textInfo ? textInfo.index : index;
+
         const text = new fabric.Text(`${distMm.toFixed(2)} mm`, {
-          left: (p1.x + p2.x) / 2,
-          top: (p1.y + p2.y) / 2 - 10,
-          fontSize: getScaleInvariantFontSize(),
+          left: midX,
+          top: midY,
+          fontSize: getScaleInvariantFontSize(14, textIndex),
           fill: "yellow",
           backgroundColor: "rgba(0,0,0,0.7)",
           originX: "center",
@@ -171,6 +198,7 @@ const MeasurementTool = ({
           selectable: false,
           evented: false,
           baseFontSize: 14,
+          associatedIndex: textIndex,
         });
         fabricCanvas.current.add(text);
         fabricCanvas.current.renderAll();
@@ -186,31 +214,36 @@ const MeasurementTool = ({
         const img2 = canvasToImageCoords(p2.x, p2.y);
         const img3 = canvasToImageCoords(p3.x, p3.y);
 
+        const index = getViewerInfo(p1.x, p1.y).index;
+
         const line1 = new fabric.Line([p2.x, p2.y, p1.x, p1.y], {
           stroke: "green",
-          strokeWidth: getScaleInvariantStrokeWidth(),
+          strokeWidth: getScaleInvariantStrokeWidth(2, index),
           selectable: false,
           evented: false,
           baseStrokeWidth: 2,
+          associatedIndex: index,
         });
         const line2 = new fabric.Line([p2.x, p2.y, p3.x, p3.y], {
           stroke: "green",
-          strokeWidth: getScaleInvariantStrokeWidth(),
+          strokeWidth: getScaleInvariantStrokeWidth(2, index),
           selectable: false,
           evented: false,
           baseStrokeWidth: 2,
+          associatedIndex: index,
         });
         fabricCanvas.current.add(line1);
         fabricCanvas.current.add(line2);
 
         // Calculate angle using image coordinates (accounts for pixel spacing)
+        const ps = pixelSpacings[index] || [1, 1];
         const vector1 = { 
-          x: (img1.x - img2.x) * (pixelSpacing[1] || 1), 
-          y: (img1.y - img2.y) * (pixelSpacing[0] || 1) 
+          x: (img1.x - img2.x) * ps[1], 
+          y: (img1.y - img2.y) * ps[0] 
         };
         const vector2 = { 
-          x: (img3.x - img2.x) * (pixelSpacing[1] || 1), 
-          y: (img3.y - img2.y) * (pixelSpacing[0] || 1) 
+          x: (img3.x - img2.x) * ps[1], 
+          y: (img3.y - img2.y) * ps[0] 
         };
         
         const dotProduct = vector1.x * vector2.x + vector1.y * vector2.y;
@@ -222,10 +255,15 @@ const MeasurementTool = ({
         // Ensure angle is between 0 and 180 degrees
         if (angle > 180) angle = 360 - angle;
 
+        const textX = p2.x;
+        const textY = p2.y - 15;
+        const textInfo = getViewerInfo(textX, textY);
+        const textIndex = textInfo ? textInfo.index : index;
+
         const text = new fabric.Text(`${angle.toFixed(1)}°`, {
-          left: p2.x,
-          top: p2.y - 15,
-          fontSize: getScaleInvariantFontSize(),
+          left: textX,
+          top: textY,
+          fontSize: getScaleInvariantFontSize(14, textIndex),
           fill: "orange",
           backgroundColor: "rgba(0,0,0,0.7)",
           originX: "center",
@@ -233,6 +271,7 @@ const MeasurementTool = ({
           selectable: false,
           evented: false,
           baseFontSize: 14,
+          associatedIndex: textIndex,
         });
         fabricCanvas.current.add(text);
         fabricCanvas.current.renderAll();
@@ -241,17 +280,19 @@ const MeasurementTool = ({
 
       // Rectangle Measurement
       if (tool === "Rectangle" && pointsRef.current.length === 4) {
+        const [p1, p2, p3, p4] = pointsRef.current;
+        const index = getViewerInfo(p1.x, p1.y).index;
         const polygon = new fabric.Polygon(pointsRef.current, {
           stroke: "yellow",
-          strokeWidth: getScaleInvariantStrokeWidth(),
+          strokeWidth: getScaleInvariantStrokeWidth(2, index),
           fill: "rgba(255,255,0,0.2)",
           selectable: false,
           evented: false,
           baseStrokeWidth: 2,
+          associatedIndex: index,
         });
         fabricCanvas.current.add(polygon);
 
-        const [p1, p2, p3, p4] = pointsRef.current;
         const sides = [
           [p1, p2],
           [p2, p3],
@@ -259,16 +300,16 @@ const MeasurementTool = ({
           [p4, p1],
         ];
 
-        // Calculate and display side lengths
         sides.forEach(([a, b]) => {
           const distMm = calculateDistanceMm(a, b);
           const midX = (a.x + b.x) / 2;
           const midY = (a.y + b.y) / 2;
-
+          const textInfo = getViewerInfo(midX, midY);
+          const textIndex = textInfo ? textInfo.index : index;
           const text = new fabric.Text(`${distMm.toFixed(2)} mm`, {
             left: midX,
             top: midY,
-            fontSize: getScaleInvariantFontSize(),
+            fontSize: getScaleInvariantFontSize(14, textIndex),
             fill: "yellow",
             backgroundColor: "rgba(0,0,0,0.7)",
             originX: "center",
@@ -276,6 +317,7 @@ const MeasurementTool = ({
             selectable: false,
             evented: false,
             baseFontSize: 14,
+            associatedIndex: textIndex,
           });
           fabricCanvas.current.add(text);
         });
@@ -284,11 +326,12 @@ const MeasurementTool = ({
         const areaMm2 = calculateAreaMm2(pointsRef.current);
         const centerX = (p1.x + p2.x + p3.x + p4.x) / 4;
         const centerY = (p1.y + p2.y + p3.y + p4.y) / 4;
-        
+        const areaInfo = getViewerInfo(centerX, centerY);
+        const areaIndex = areaInfo ? areaInfo.index : index;
         const areaText = new fabric.Text(`${areaMm2.toFixed(2)} mm²`, {
           left: centerX,
           top: centerY,
-          fontSize: getScaleInvariantFontSize(),
+          fontSize: getScaleInvariantFontSize(14, areaIndex),
           fill: "yellow",
           backgroundColor: "rgba(0,0,0,0.7)",
           originX: "center",
@@ -296,6 +339,7 @@ const MeasurementTool = ({
           selectable: false,
           evented: false,
           baseFontSize: 14,
+          associatedIndex: areaIndex,
         });
         fabricCanvas.current.add(areaText);
 
@@ -306,6 +350,7 @@ const MeasurementTool = ({
       // Ellipse Measurement
       if (tool === "Ellipse" && pointsRef.current.length === 2) {
         const [p1, p2] = pointsRef.current;
+        const index = getViewerInfo(p1.x, p1.y).index;
         const ellipse = new fabric.Ellipse({
           left: Math.min(p1.x, p2.x),
           top: Math.min(p1.y, p2.y),
@@ -313,29 +358,35 @@ const MeasurementTool = ({
           ry: Math.abs(p2.y - p1.y) / 2,
           fill: "rgba(0,255,0,0.2)",
           stroke: "green",
-          strokeWidth: getScaleInvariantStrokeWidth(),
+          strokeWidth: getScaleInvariantStrokeWidth(2, index),
           originX: "left",
           originY: "top",
           selectable: false,
           evented: false,
           baseStrokeWidth: 2,
+          associatedIndex: index,
         });
         fabricCanvas.current.add(ellipse);
 
         // Calculate accurate axis measurements
         const img1 = canvasToImageCoords(p1.x, p1.y);
         const img2 = canvasToImageCoords(p2.x, p2.y);
-        
-        const majorAxisMm = Math.abs(img2.x - img1.x) * (pixelSpacing[1] || 1);
-        const minorAxisMm = Math.abs(img2.y - img1.y) * (pixelSpacing[0] || 1);
+        const ps = pixelSpacings[index] || [1, 1];
+        const majorAxisMm = Math.abs(img2.x - img1.x) * ps[1];
+        const minorAxisMm = Math.abs(img2.y - img1.y) * ps[0];
         
         const centerX = (p1.x + p2.x) / 2;
         const centerY = (p1.y + p2.y) / 2;
 
+        const majorTextX = centerX;
+        const majorTextY = Math.min(p1.y, p2.y) - 10;
+        const majorInfo = getViewerInfo(majorTextX, majorTextY);
+        const majorIndex = majorInfo ? majorInfo.index : index;
+
         const majorText = new fabric.Text(`${majorAxisMm.toFixed(2)} mm`, {
-          left: centerX,
-          top: Math.min(p1.y, p2.y) - 10,
-          fontSize: getScaleInvariantFontSize(),
+          left: majorTextX,
+          top: majorTextY,
+          fontSize: getScaleInvariantFontSize(14, majorIndex),
           fill: "yellow",
           backgroundColor: "rgba(0,0,0,0.7)",
           originX: "center",
@@ -343,12 +394,18 @@ const MeasurementTool = ({
           selectable: false,
           evented: false,
           baseFontSize: 14,
+          associatedIndex: majorIndex,
         });
         
+        const minorTextX = Math.min(p1.x, p2.x) - 30;
+        const minorTextY = centerY;
+        const minorInfo = getViewerInfo(minorTextX, minorTextY);
+        const minorIndex = minorInfo ? minorInfo.index : index;
+
         const minorText = new fabric.Text(`${minorAxisMm.toFixed(2)} mm`, {
-          left: Math.min(p1.x, p2.x) - 30,
-          top: centerY,
-          fontSize: getScaleInvariantFontSize(),
+          left: minorTextX,
+          top: minorTextY,
+          fontSize: getScaleInvariantFontSize(14, minorIndex),
           fill: "yellow",
           backgroundColor: "rgba(0,0,0,0.7)",
           originX: "center",
@@ -356,6 +413,7 @@ const MeasurementTool = ({
           selectable: false,
           evented: false,
           baseFontSize: 14,
+          associatedIndex: minorIndex,
         });
         
         fabricCanvas.current.add(majorText, minorText);
@@ -366,12 +424,14 @@ const MeasurementTool = ({
       // Arrow Tool
       if (tool === "Arrow" && pointsRef.current.length === 2) {
         const [p1, p2] = pointsRef.current;
+        const index = getViewerInfo(p1.x, p1.y).index;
         const arrow = new fabric.Line([p1.x, p1.y, p2.x, p2.y], {
           stroke: "white",
-          strokeWidth: getScaleInvariantStrokeWidth(),
+          strokeWidth: getScaleInvariantStrokeWidth(2, index),
           selectable: false,
           evented: false,
           baseStrokeWidth: 2,
+          associatedIndex: index,
         });
         
         const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x) * (180 / Math.PI);
@@ -379,8 +439,8 @@ const MeasurementTool = ({
           left: p2.x,
           top: p2.y,
           angle: angle,
-          width: 10 / Math.max(viewportScale, 0.5),
-          height: 15 / Math.max(viewportScale, 0.5),
+          width: 10 / Math.max(viewports[index]?.scale || 1, 0.5),
+          height: 15 / Math.max(viewports[index]?.scale || 1, 0.5),
           fill: "white",
           originX: "center",
           originY: "center",
@@ -388,6 +448,7 @@ const MeasurementTool = ({
           evented: false,
           baseWidth: 10,
           baseHeight: 15,
+          associatedIndex: index,
         });
         
         fabricCanvas.current.add(arrow);
@@ -399,16 +460,18 @@ const MeasurementTool = ({
       // Text Tool
       if (tool === "Text" && pointsRef.current.length === 1) {
         const [p] = pointsRef.current;
+        const index = getViewerInfo(p.x, p.y).index;
         const text = new fabric.Textbox("Type here", {
           left: p.x,
           top: p.y,
-          fontSize: getScaleInvariantFontSize(16),
+          fontSize: getScaleInvariantFontSize(16, index),
           fill: "white",
           backgroundColor: "rgba(0,0,0,0.7)",
           editable: true,
           hasControls: true,
           hasBorders: true,
           baseFontSize: 16,
+          associatedIndex: index,
         });
         fabricCanvas.current.add(text);
         fabricCanvas.current.setActiveObject(text);
@@ -419,13 +482,16 @@ const MeasurementTool = ({
 
       // Polyline Tool
       if (tool === "Polyline" && pointsRef.current.length >= 2) {
+        const [p1] = pointsRef.current;
+        const index = getViewerInfo(p1.x, p1.y).index;
         const polyline = new fabric.Polyline(pointsRef.current, {
           stroke: "cyan",
-          strokeWidth: getScaleInvariantStrokeWidth(),
+          strokeWidth: getScaleInvariantStrokeWidth(2, index),
           fill: "transparent",
           selectable: false,
           evented: false,
           baseStrokeWidth: 2,
+          associatedIndex: index,
         });
         fabricCanvas.current.add(polyline);
         fabricCanvas.current.renderAll();
@@ -434,13 +500,16 @@ const MeasurementTool = ({
 
       // Polygon Tool
       if (tool === "Polygon" && pointsRef.current.length >= 3) {
+        const [p1] = pointsRef.current;
+        const index = getViewerInfo(p1.x, p1.y).index;
         const polygon = new fabric.Polygon(pointsRef.current, {
           stroke: "magenta",
-          strokeWidth: getScaleInvariantStrokeWidth(),
+          strokeWidth: getScaleInvariantStrokeWidth(2, index),
           fill: "rgba(255,0,255,0.2)",
           selectable: false,
           evented: false,
           baseStrokeWidth: 2,
+          associatedIndex: index,
         });
         fabricCanvas.current.add(polygon);
 
@@ -448,11 +517,12 @@ const MeasurementTool = ({
         const areaMm2 = calculateAreaMm2(pointsRef.current);
         const centerX = pointsRef.current.reduce((sum, p) => sum + p.x, 0) / pointsRef.current.length;
         const centerY = pointsRef.current.reduce((sum, p) => sum + p.y, 0) / pointsRef.current.length;
-
+        const areaInfo = getViewerInfo(centerX, centerY);
+        const areaIndex = areaInfo ? areaInfo.index : index;
         const areaText = new fabric.Text(`${areaMm2.toFixed(2)} mm²`, {
           left: centerX,
           top: centerY,
-          fontSize: getScaleInvariantFontSize(),
+          fontSize: getScaleInvariantFontSize(14, areaIndex),
           fill: "yellow",
           backgroundColor: "rgba(0,0,0,0.7)",
           originX: "center",
@@ -460,6 +530,7 @@ const MeasurementTool = ({
           selectable: false,
           evented: false,
           baseFontSize: 14,
+          associatedIndex: areaIndex,
         });
         fabricCanvas.current.add(areaText);
 
@@ -477,7 +548,7 @@ const MeasurementTool = ({
         fabricCanvas.current = null;
       }
     };
-  }, [tool, containerWidth, containerHeight, pixelSpacing, viewportScale, viewport, imageColumns, imageRows]);
+  }, [tool, containerWidth, containerHeight, pixelSpacings, viewports, imageMetadata, layout]);
 
   // Update existing measurements when viewport changes
   useEffect(() => {
@@ -487,31 +558,32 @@ const MeasurementTool = ({
     const objects = canvas.getObjects();
 
     objects.forEach((obj) => {
-      if (obj.type === 'text' || obj.type === 'textbox') {
-        const baseFontSize = obj.get('baseFontSize') || 14;
-        obj.set('fontSize', Math.max(baseFontSize / Math.max(viewportScale, 0.5), 10));
+      const index = obj.get("associatedIndex") || 0;
+      if (obj.type === "text" || obj.type === "textbox") {
+        const baseFontSize = obj.get("baseFontSize") || 14;
+        obj.set("fontSize", getScaleInvariantFontSize(baseFontSize, index));
       }
-      
-      if (obj.type === 'circle') {
-        const baseRadius = obj.get('baseRadius') || 4;
-        obj.set('radius', Math.max(baseRadius / Math.max(viewportScale, 0.5), 2));
+
+      if (obj.type === "circle") {
+        const baseRadius = obj.get("baseRadius") || 4;
+        obj.set("radius", getScaleInvariantRadius(baseRadius, index));
       }
-      
+
       if (obj.strokeWidth) {
-        const baseStrokeWidth = obj.get('baseStrokeWidth') || 2;
-        obj.set('strokeWidth', Math.max(baseStrokeWidth / Math.max(viewportScale, 0.5), 1));
+        const baseStrokeWidth = obj.get("baseStrokeWidth") || 2;
+        obj.set("strokeWidth", getScaleInvariantStrokeWidth(baseStrokeWidth, index));
       }
-      
-      if (obj.type === 'triangle') {
-        const baseWidth = obj.get('baseWidth') || 10;
-        const baseHeight = obj.get('baseHeight') || 15;
-        obj.set('width', baseWidth / Math.max(viewportScale, 0.5));
-        obj.set('height', baseHeight / Math.max(viewportScale, 0.5));
+
+      if (obj.type === "triangle") {
+        const baseWidth = obj.get("baseWidth") || 10;
+        const baseHeight = obj.get("baseHeight") || 15;
+        obj.set("width", baseWidth / Math.max(viewports[index]?.scale || 1, 0.5));
+        obj.set("height", baseHeight / Math.max(viewports[index]?.scale || 1, 0.5));
       }
     });
 
     canvas.renderAll();
-  }, [viewportScale, viewport]);
+  }, [viewports]);
 
   const clearMeasurements = () => {
     if (fabricCanvas.current) {
@@ -522,27 +594,31 @@ const MeasurementTool = ({
   };
 
   return (
-    <div style={{ 
-      position: "absolute", 
-      top: 0, 
-      left: 0, 
-      width: "100%", 
-      height: "100%", 
-      zIndex: 10, 
-      pointerEvents: "auto" 
-    }}>
-      <div style={{
+    <div
+      style={{
         position: "absolute",
-        top: 10,
-        left: 10,
-        zIndex: 20,
-        display: "flex",
-        gap: "10px",
-        alignItems: "center",
-        background: "rgba(0,0,0,0.8)",
-        padding: "8px",
-        borderRadius: "4px"
-      }}>
+        top: 0,
+        left: 0,
+        width: "100%",
+        height: "100%",
+        zIndex: 10,
+        pointerEvents: "auto",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 10,
+          left: 10,
+          zIndex: 20,
+          display: "flex",
+          gap: "10px",
+          alignItems: "center",
+          background: "rgba(0,0,0,0.8)",
+          padding: "8px",
+          borderRadius: "4px",
+        }}
+      >
         <select
           value={tool}
           onChange={(e) => setTool(e.target.value)}
@@ -551,7 +627,7 @@ const MeasurementTool = ({
             fontWeight: "bold",
             backgroundColor: "white",
             border: "1px solid #ccc",
-            borderRadius: "4px"
+            borderRadius: "4px",
           }}
         >
           {TOOL_OPTIONS.map((t) => (
@@ -569,14 +645,14 @@ const MeasurementTool = ({
             border: "none",
             borderRadius: "4px",
             cursor: "pointer",
-            fontWeight: "bold"
+            fontWeight: "bold",
           }}
         >
           Clear
         </button>
-        <div style={{ color: "white", fontSize: "12px", marginLeft: "10px" }}>
-          Pixel Spacing: {pixelSpacing[0]?.toFixed(3) || 1} × {pixelSpacing[1]?.toFixed(3) || 1} mm
-        </div>
+        {/* <div style={{ color: "white", fontSize: "12px", marginLeft: "10px" }}>
+          Pixel Spacing: {(pixelSpacings[0]?.[0] || 1).toFixed(3)} × {(pixelSpacings[0]?.[1] || 1).toFixed(3)} mm
+        </div> */}
       </div>
 
       <canvas
@@ -587,7 +663,7 @@ const MeasurementTool = ({
           left: 0,
           width: "100%",
           height: "100%",
-          pointerEvents: "auto"
+          pointerEvents: "auto",
         }}
       />
 
@@ -602,7 +678,7 @@ const MeasurementTool = ({
             backgroundColor: "rgba(0,0,0,0.8)",
             padding: "5px 10px",
             borderRadius: "4px",
-            zIndex: 20
+            zIndex: 20,
           }}
         >
           Distance: {distance.toFixed(2)} mm

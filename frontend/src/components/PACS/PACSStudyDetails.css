@@ -21,7 +21,8 @@ h1, h2, h3, h4 {
 .pacssd-header {
   background-color: #1a237e;
   color: rgb(255, 255, 255);
-  padding: 16px;
+  padding: 15px;
+  position: relative;
 }
 
 /* Custom classes for the component */
@@ -30,7 +31,7 @@ h1, h2, h3, h4 {
 }
 
 .pacssd-bg-gray-100 {
-  background-color: #f8f9fa;
+  background-color: #ffffff;
 }
 
 .pacssd-text-white {
@@ -38,37 +39,45 @@ h1, h2, h3, h4 {
 }
 
 .pacssd-p-4 {
-  padding: 16px;
+  padding: 26px;
 }
 
 .pacssd-max-w-7xl {
-  max-width: 1400px;
-}
-
-.pacssd-mx-auto {
-  margin-left: auto;
-  margin-right: auto;
+  max-width: 1600px;
 }
 
 .pacssd-flex {
   display: flex;
 }
 
-.pacssd-justify-between {
-  justify-content: space-between;
-}
-
-.pacssd-items-center {
-  align-items: center;
-}
-
 .pacssd-text-2xl {
-  font-size: 2rem;
+  font-size: 2.5rem;
 }
 
 .pacssd-font-bold {
   font-weight: bold;
 }
+
+.pacssd-header-left {
+  margin-right: auto;
+}
+
+.pacssd-header-center {
+  margin-left: 668px;
+  flex-grow: 1;
+}
+
+.pacssd-header-right {
+  margin-left: 0;
+  position: absolute;
+  right: 15px;
+}
+
+/* .pacssd-user-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+} */
 
 .pacssd-user-controls {
   display: flex;
@@ -102,30 +111,6 @@ h1, h2, h3, h4 {
   cursor: not-allowed;
 }
 
-.pacssd-logout-btn {
-  font-family: 'Folks', sans-serif;
-  background-color: #dc3545;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.pacssd-logout-btn:hover {
-  background-color: #c82333;
-}
-
-.pacssd-logout-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .pacssd-logout-message {
   position: fixed;
   top: 20px;
@@ -142,7 +127,7 @@ h1, h2, h3, h4 {
 }
 
 .pacssd-pacs-container {
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
   padding: 15px;
   width: 90%;
@@ -150,21 +135,20 @@ h1, h2, h3, h4 {
 
 .pacssd-back-button {
   font-family: 'Folks', sans-serif;
+  background-color: #0056b3;
+  color: #ffffff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 4px;
+  font-size: 14px;
   display: flex;
   align-items: center;
-  background-color: #6c757d;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  margin-bottom: 20px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
+  gap: 8px;
+  text-decoration: none;
 }
 
 .pacssd-back-button:hover {
-  background-color: #5a6268;
+  background-color: #004d99;
 }
 
 .pacssd-back-button:disabled {
