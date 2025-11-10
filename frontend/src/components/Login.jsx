@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Eye, EyeOff, Mail, Lock, LogIn, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { AnalyticsTracker } from './AnalyticsDashboard'; // ← ADDED
 import "./styles/Login.css";
 
 const API_BASE = "http://localhost:5000";
@@ -152,6 +153,10 @@ const LoginForm = ({ onClose, onSignupClick, onLoginSuccess }) => {
 
         setFormData({ email: "", password: "" });
 
+        // ← ANALYTICS TRACKING ADDED HERE
+        AnalyticsTracker.trackLogin();
+        AnalyticsTracker.trackSessionStart();
+
         setTimeout(() => {
           if (typeof onClose === "function") {
             onClose();
@@ -273,7 +278,7 @@ const LoginForm = ({ onClose, onSignupClick, onLoginSuccess }) => {
           </div>
 
           <div className="row-between">
-            <div className="select-container">
+                       <div className="select-container">
               <label htmlFor="rememberOption">Stay Signed In</label>
               <select
                 id="rememberOption"

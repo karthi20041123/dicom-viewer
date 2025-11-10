@@ -109,7 +109,7 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
           },
         });
         isWebWorkerInitialized.current = true;
-        console.log('✅ Cornerstone web workers initialized');
+        console.log('Cornerstone web workers initialized');
       } catch (err) {
         console.error('Failed to initialize Cornerstone web workers:', err);
         setMessage('Failed to initialize DICOM processing. Please try again.');
@@ -517,7 +517,7 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
       } else {
         setMessage('No files were exported. Please try again.');
       }
-    5} catch (error) {
+    } catch (error) {
       console.error('Export error:', error);
       setMessage(`Export failed: ${error.message}`);
     } finally {
@@ -536,6 +536,7 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
     setMessage('You have been logged out');
     setAllStudies([]);
     setFilteredStudies([]);
+    localStorage.removeItem('localStudies'); // Clear studies on logout
 
     if (isControlled) {
       onLogout();
@@ -636,12 +637,12 @@ const PACSSearchResults = ({ onStudySelect, onViewSeries, isLoggedIn, onLogin, o
           </div>
         )}
 
-        <div className="pacsrs-upload-dicom-container">
+        {/* <div className="pacsrs-upload-dicom-container">
           <button onClick={handleUploadClick} className="pacsrs-upload-dicom-btn" disabled={isUploading}>
             <Upload size={24} style={{ marginRight: '8px' }} />
             {isUploading ? 'Processing...' : 'Upload DICOM'}
           </button>
-        </div>
+        </div> */}
 
         <div className="pacsrs-search-container">
           <div className="pacsrs-search-box">

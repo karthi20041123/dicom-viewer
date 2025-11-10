@@ -1,3 +1,4 @@
+// models/Study.js
 import { DataTypes } from 'sequelize';
 
 export default (sequelize) => {

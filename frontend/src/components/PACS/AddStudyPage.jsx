@@ -15,6 +15,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import * as dicomParser from 'dicom-parser';
+import AnalyticsDashboard from '../AnalyticsDashboard'; // ← ADDED
 import './AddStudyPage.css';
 
 // API base URL (not used for local storage)
@@ -28,6 +29,8 @@ const AddStudyPage = ({
   onStudySaved,
 }) => {
   const navigate = useNavigate();
+
+  // ← ALL HOOKS AT TOP
   const [studyData, setStudyData] = useState({
     patientName: '',
     patientID: '',
@@ -59,6 +62,10 @@ const AddStudyPage = ({
   const fileInputRef = useRef(null);
   const [effectiveIsLoggedIn, setEffectiveIsLoggedIn] = useState(isLoggedIn);
 
+  // ← ANALYTICS STATE
+  const [showAnalytics, setShowAnalytics] = useState(false);
+
+  // ← useEffect AFTER ALL HOOKS
   useEffect(() => {
     if (existingStudy && mode === 'edit') {
       setStudyData((prev) => ({
@@ -92,6 +99,11 @@ const AddStudyPage = ({
     const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
     setEffectiveIsLoggedIn(isLoggedIn || !!token);
   }, [existingStudy, mode, isLoggedIn]);
+
+  // ← SAFE EARLY RETURN — AFTER ALL HOOKS
+  if (showAnalytics) {
+    return <AnalyticsDashboard onBack={() => setShowAnalytics(false)} />;
+  }
 
   const getAuthToken = () => {
     return localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
@@ -535,10 +547,30 @@ const AddStudyPage = ({
           Back to Studies
         </button>
         <h1 className="details-title">Add Study Details</h1>
-        <button onClick={handleUploadClick} className="upload-btn" disabled={isUploading}>
-          <Upload size={20} />
-          {isUploading ? 'Processing...' : 'Upload DICOM'}
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          {/* ← ANALYTICS BUTTON */}
+          <button
+            onClick={() => setShowAnalytics(true)}
+            className="analytics-btn"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 20px',
+              background: '#667eea',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            Analytics
+          </button>
+          <button onClick={handleUploadClick} className="upload-btn" disabled={isUploading}>
+            <Upload size={20} />
+            {isUploading ? 'Processing...' : 'Upload DICOM'}
+          </button>
+        </div>
       </div>
 
       {isUploading && (

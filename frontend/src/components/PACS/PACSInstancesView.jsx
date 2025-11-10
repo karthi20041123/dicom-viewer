@@ -16,6 +16,7 @@ import * as cornerstoneWADOImageLoader from 'cornerstone-wado-image-loader';
 import * as dicomParser from 'dicom-parser';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import './PACSInstancesView.css';
 
 const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onViewInstance, backendUrl }) => {
   const [selectedInstances, setSelectedInstances] = useState([]);
@@ -266,125 +267,120 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
 
   if (!selectedSeries) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-700 mb-4">No Series Selected</h2>
-          <p className="text-gray-500">Please select a series to view instances.</p>
+      <div className="pacs-no-series-container">
+        <div className="pacs-no-series-inner">
+          <h2 className="pacs-no-series-title">No Series Selected</h2>
+          <p className="pacs-no-series-text">Please select a series to view instances.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="bg-blue-600 text-white p-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold">PACS Server - Instance Viewer</h1>
+    <div className="pacs-main-wrapper">
+      <div className="pacs-header-bar">
+        <div className="pacs-header-content">
+          <button 
+            onClick={onBackToDetails} 
+            className="pacs-header-back-btn"
+            disabled={loading}
+          >
+            <ArrowLeft className="pacs-back-icon" />
+            Back
+          </button>
+          <h1 className="pacs-header-title">PACS Server - Instance Viewer</h1>
+          <div></div> {/* Spacer for centering title if needed */}
         </div>
       </div>
 
-      <div className="pacs-container">
-        <button 
-          onClick={onBackToDetails} 
-          className="back-button"
-          disabled={loading}
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Study Details
-        </button>
-
-        <div className="study-details-section fade-in">
-          <div className="search-header">
+      <div className="pacs-inner-container">
+        <div className="pacs-study-details fade-in">
+          <div className="pacs-search-header">
             <Image size={28} />
             <h2>Series Instances</h2>
           </div>
 
-          <div className="study-info-grid">
-            <div className="info-section">
+          <div className="pacs-info-grid">
+            <div className="pacs-info-section">
               <h3>
-                <User className="w-5 h-5" />
+                <User className="pacs-info-icon" />
                 Patient Information
               </h3>
-              <div className="info-item">
-                <span className="info-label">Name:</span>
-                <span className="info-value">{selectedStudy?.patientName || 'Unknown'}</span>
+              <div className="pacs-info-item">
+                <span className="pacs-info-label">Name:</span>
+                <span className="pacs-info-value">{selectedStudy?.patientName || 'Unknown'}</span>
               </div>
-              <div className="info-item">
-                <span className="info-label">Patient ID:</span>
-                <span className="info-value">{selectedStudy?.patientID || 'Unknown'}</span>
+              <div className="pacs-info-item">
+                <span className="pacs-info-label">Patient ID:</span>
+                <span className="pacs-info-value">{selectedStudy?.patientID || 'Unknown'}</span>
               </div>
             </div>
 
-            <div className="info-section">
+            <div className="pacs-info-section">
               <h3>
-                <FileText className="w-5 h-5" />
+                <FileText className="pacs-info-icon" />
                 Series Information
               </h3>
-              <div className="info-item">
-                <span className="info-label">Series Number:</span>
-                <span className="info-value">{selectedSeries.seriesNumber}</span>
+              <div className="pacs-info-item">
+                <span className="pacs-info-label">Series Number:</span>
+                <span className="pacs-info-value">{selectedSeries.seriesNumber}</span>
               </div>
-              <div className="info-item">
-                <span className="info-label">Description:</span>
-                <span className="info-value">{selectedSeries.seriesDescription}</span>
+              <div className="pacs-info-item">
+                <span className="pacs-info-label">Description:</span>
+                <span className="pacs-info-value">{selectedSeries.seriesDescription}</span>
               </div>
-              <div className="info-item">
-                <span className="info-label">Modality:</span>
-                <span className="info-value">{selectedSeries.modality}</span>
+              <div className="pacs-info-item">
+                <span className="pacs-info-label">Modality:</span>
+                <span className="pacs-info-value">{selectedSeries.modality}</span>
               </div>
-              <div className="info-item">
-                <span className="info-label">Instances:</span>
-                <span className="info-value">{selectedSeries.numberOfInstances}</span>
+              <div className="pacs-info-item">
+                <span className="pacs-info-label">Instances:</span>
+                <span className="pacs-info-value">{selectedSeries.numberOfInstances}</span>
               </div>
             </div>
           </div>
 
           {/* Bulk actions */}
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-4">
-              <label className="flex items-center">
+          <div className="pacs-bulk-actions">
+            <div className="pacs-select-group">
+              <label className="pacs-select-label">
                 <input
                   type="checkbox"
                   checked={selectAll}
                   onChange={handleSelectAll}
-                  className="mr-2"
+                  className="pacs-select-checkbox"
                 />
                 Select All ({selectedSeries.instances.length})
               </label>
               {selectedInstances.length > 0 && (
-                <span className="text-sm text-gray-600">
+                <span className="pacs-selected-count">
                   {selectedInstances.length} selected
                 </span>
               )}
             </div>
             
-            <div className="flex gap-2">
+            <div className="pacs-download-group">
               <button
                 onClick={() => handleDownloadInstances()}
                 disabled={loading || selectedInstances.length === 0}
-                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center"
+                className="pacs-download-selected-btn"
               >
-                <Download className="mr-2 w-4 h-4" />
+                <Download className="pacs-download-icon" />
                 Download Selected ({selectedInstances.length})
               </button>
             </div>
           </div>
         </div>
 
-        <div className="results-section scale-in">
-          <div className="results-header">
+        <div className="pacs-results-section scale-in">
+          <div className="pacs-results-header">
             <h3>
               Instance Collection
-              <span className="results-count">{selectedSeries.instances.length}</span>
+              <span className="pacs-results-count">{selectedSeries.instances.length}</span>
             </h3>
           </div>
 
-          <div className="instances-grid" style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', 
-            gap: '16px',
-            marginTop: '16px'
-          }}>
+          <div className="pacs-instances-grid">
             {selectedSeries.instances.map((instance, index) => {
               const metadata = instanceMetadata[instance.sopInstanceUID] || {};
               const isSelected = selectedInstances.find(i => i.sopInstanceUID === instance.sopInstanceUID);
@@ -392,111 +388,70 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
               return (
                 <div 
                   key={instance.sopInstanceUID} 
-                  className={`instance-card ${isSelected ? 'selected' : ''}`}
-                  style={{
-                    border: '1px solid #ddd',
-                    borderRadius: '8px',
-                    padding: '16px',
-                    backgroundColor: isSelected ? '#e3f2fd' : 'white',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                    transition: 'all 0.2s ease'
-                  }}
+                  className={`pacs-instance-card ${isSelected ? 'pacs-selected-card' : ''}`}
                 >
-                  <div className="instance-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <h4 className="instance-number" style={{ margin: 0, fontSize: '16px', fontWeight: 'bold' }}>
+                  <div className="pacs-instance-header">
+                    <h4 className="pacs-instance-number">
                       Instance {metadata.instanceNumber || index + 1}
                     </h4>
                     <input
                       type="checkbox"
                       checked={!!isSelected}
                       onChange={() => handleInstanceSelect(instance)}
-                      style={{ width: '18px', height: '18px' }}
+                      className="pacs-instance-checkbox"
                     />
                   </div>
 
-                  <div className="instance-metadata" style={{ fontSize: '14px', color: '#666', marginBottom: '12px' }}>
-                    <div style={{ marginBottom: '4px' }}>
-                      <Hash className="w-4 h-4" style={{ display: 'inline', marginRight: '4px' }} />
+                  <div className="pacs-instance-metadata">
+                    <div className="pacs-metadata-row">
+                      <Hash className="pacs-metadata-icon" />
                       <strong>SOP UID:</strong> {instance.sopInstanceUID?.substring(0, 20)}...
                     </div>
-                    <div style={{ marginBottom: '4px' }}>
-                      <FileText className="w-4 h-4" style={{ display: 'inline', marginRight: '4px' }} />
+                    <div className="pacs-metadata-row">
+                      <FileText className="pacs-metadata-icon" />
                       <strong>File:</strong> {metadata.fileName}
                     </div>
-                    <div style={{ marginBottom: '4px' }}>
-                      <Info className="w-4 h-4" style={{ display: 'inline', marginRight: '4px' }} />
+                    <div className="pacs-metadata-row">
+                      <Info className="pacs-metadata-icon" />
                       <strong>Size:</strong> {formatFileSize(metadata.fileSize)}
                     </div>
                     {metadata.acquisitionTime && metadata.acquisitionTime !== 'Unknown' && (
-                      <div style={{ marginBottom: '4px' }}>
-                        <Clock className="w-4 h-4" style={{ display: 'inline', marginRight: '4px' }} />
+                      <div className="pacs-metadata-row">
+                        <Clock className="pacs-metadata-icon" />
                         <strong>Acquisition:</strong> {metadata.acquisitionTime}
                       </div>
                     )}
                   </div>
 
-                  <div className="instance-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <div className="pacs-instance-actions">
                     <button 
                       onClick={() => handleViewInstance(instance)} 
-                      className="instance-view-btn"
-                      style={{
-                        padding: '6px 12px',
-                        backgroundColor: '#1a237e',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        fontSize: '12px'
-                      }}
+                      className="pacs-instance-view-btn"
                       disabled={loading}
                     >
-                      <Eye className="w-4 h-4 mr-1" />
+                      <Eye className="pacs-action-icon" />
                       View
                     </button>
                     <button
                       onClick={() => handleInstancePreview(instance)}
-                      className="instance-preview-btn"
-                      style={{
-                        padding: '6px 12px',
-                        backgroundColor: '#1a237e',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        fontSize: '12px'
-                      }}
+                      className="pacs-instance-preview-btn"
                       disabled={loading}
                     >
-                      <Image className="w-4 h-4 mr-1" />
+                      <Image className="pacs-action-icon" />
                       Preview
                     </button>
                     <button
                       onClick={() => handleDownloadInstances([instance])}
-                      className="instance-download-btn"
-                      style={{
-                        padding: '6px 12px',
-                        backgroundColor: '#008b3fff',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        fontSize: '12px'
-                      }}
+                      className="pacs-instance-download-btn"
                       disabled={loading}
                     >
-                      <Download className="w-4 h-4 mr-1" />
+                      <Download className="pacs-action-icon" />
                       Download
                     </button>
                   </div>
 
                   {/* {metadata.error && (
-                    <div style={{ marginTop: '8px', padding: '4px 8px', backgroundColor: '#ffebee', color: '#c62828', fontSize: '12px', borderRadius: '4px' }}>
+                    <div className="pacs-error-message">
                       {metadata.error}
                     </div>
                   )} */}
@@ -508,38 +463,13 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
 
         {/* Preview Modal */}
         {previewInstance && (
-          <div className="preview-modal" style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.8)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}>
-            <div style={{
-              backgroundColor: 'white',
-              padding: '20px',
-              borderRadius: '8px',
-              maxWidth: '80%',
-              maxHeight: '80%',
-              overflow: 'auto'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div className="pacs-preview-modal">
+            <div className="pacs-preview-content">
+              <div className="pacs-preview-header">
                 <h3>Instance Preview</h3>
                 <button 
                   onClick={() => setPreviewInstance(null)}
-                  style={{ 
-                    backgroundColor: '#f44336', 
-                    color: 'white', 
-                    border: 'none', 
-                    borderRadius: '4px', 
-                    padding: '8px 16px',
-                    cursor: 'pointer'
-                  }}
+                  className="pacs-close-btn"
                 >
                   Close
                 </button>
@@ -548,7 +478,7 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
                 <img 
                   src={previewInstance.thumbnailData} 
                   alt="Instance Preview"
-                  style={{ maxWidth: '100%', height: 'auto' }}
+                  className="pacs-preview-image"
                 />
               )}
             </div>
@@ -556,9 +486,9 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
         )}
 
         {loading && (
-          <div className="loading-overlay">
-            <div className="loading-spinner">
-              <div className="spinner"></div>
+          <div className="pacs-loading-overlay">
+            <div className="pacs-loading-spinner">
+              <div className="pacs-spinner"></div>
               <p>Processing...</p>
             </div>
           </div>
