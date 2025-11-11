@@ -116,6 +116,7 @@
 
 .mpr-menu .MuiMenuItem-root {
   color: #001f3f;
+  background-color: #ffffff;
   font-family: LemonMilk, sans-serif;
   font-size: 14px;
   padding: 10px 16px;
@@ -129,7 +130,7 @@
 }
 
 .mpr-menu .MuiMenuItem-root[disabled] {
-  color: #aaa;
+  color: #ffffff;
   background-color: transparent;
 }
 
@@ -144,6 +145,7 @@
 
 .export-menu .MuiMenuItem-root {
   color: #001f3f;
+  background-color: #ffffff;
   font-family: LemonMilk, sans-serif;
   font-size: 14px;
   padding: 10px 16px;

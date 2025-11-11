@@ -44,17 +44,36 @@ const Segmentation = ({
   const overlayCanvasRef = useRef(null);
   const mainCanvasRef = useRef(null);
   const draggingRef = useRef(null);
-  const resizingRef = useRef(null); // NEW: for resizing boxes
-  const selectedDrawingRef = useRef(null); // NEW: currently selected drawing
+  const resizingRef = useRef(null);
+  const selectedDrawingRef = useRef(null);
   const [editingSegmentId, setEditingSegmentId] = useState(null);
   const [editName, setEditName] = useState("");
   const [editComment, setEditComment] = useState("");
   const [hoveredDrawing, setHoveredDrawing] = useState(null);
-  const [selectedDrawing, setSelectedDrawing] = useState(null); // NEW: UI state
+  const [selectedDrawing, setSelectedDrawing] = useState(null);
   const isMounted = useRef(false);
 
   // ----------------------------------------------------------------------
-  // 1. Safe Load: parent prop → localStorage fallback
+  // 1. Reset selection when panel opens/closes
+  // ----------------------------------------------------------------------
+  useEffect(() => {
+    if (isSegmentationActive) {
+      // Panel opened → clear stale selection
+      setSelectedDrawing(null);
+      selectedDrawingRef.current = null;
+    }
+  }, [isSegmentationActive]);
+
+  useEffect(() => {
+    if (!isSegmentationActive && onClose) {
+      // Panel closing → ensure clean state
+      setSelectedDrawing(null);
+      selectedDrawingRef.current = null;
+    }
+  }, [isSegmentationActive, onClose]);
+
+  // ----------------------------------------------------------------------
+  // 2. Safe Load: parent prop → localStorage fallback
   // ----------------------------------------------------------------------
   useEffect(() => {
     const storageKey = `segmentation_data_${imageIndex}`;
@@ -88,7 +107,7 @@ const Segmentation = ({
   }, [segmentsProp, imageIndex, segments, activeSegmentId]);
 
   // ----------------------------------------------------------------------
-  // 2. Safe Persist: localStorage + notify parent
+  // 3. Safe Persist: localStorage + notify parent
   // ----------------------------------------------------------------------
   useEffect(() => {
     if (!isMounted.current) {
@@ -108,7 +127,7 @@ const Segmentation = ({
   }, [segments, imageIndex, onSegmentsChange]);
 
   // ----------------------------------------------------------------------
-  // 3. Canvas Setup: Overlay + Main Canvas Reference
+  // 4. Canvas Setup: Overlay + Main Canvas Reference
   // ----------------------------------------------------------------------
   useEffect(() => {
     if (!viewerRef?.current) return;
@@ -141,7 +160,7 @@ const Segmentation = ({
   }, [isSegmentationActive, viewerRef]);
 
   // ----------------------------------------------------------------------
-  // 4. Draw on Main Canvas (Persistent After Apply)
+  // 5. Draw on Main Canvas (Persistent After Apply)
   // ----------------------------------------------------------------------
   const drawOnMainCanvas = useCallback(() => {
     const canvas = mainCanvasRef.current;
@@ -201,7 +220,7 @@ const Segmentation = ({
   }, [isSegmentationActive, segments, drawOnMainCanvas]);
 
   // ----------------------------------------------------------------------
-  // 5. Geometry Helpers
+  // 6. Geometry Helpers
   // ----------------------------------------------------------------------
   const isPointInCenterHandle = (x, y, drawing) => {
     const cx = drawing.x + drawing.w / 2;
@@ -265,7 +284,7 @@ const Segmentation = ({
   };
 
   // ----------------------------------------------------------------------
-  // 6. Mouse Handlers (Now with Edit, Resize, Select)
+  // 7. Mouse Handlers (Now with Edit, Resize, Select)
   // ----------------------------------------------------------------------
   useEffect(() => {
     if (!isSegmentationActive || !viewerRef?.current) return;
@@ -279,8 +298,6 @@ const Segmentation = ({
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-
-      const activeSeg = segments.find((s) => s.id === activeSegmentId);
 
       // --- 1. Check for resize handle (box only)
       if (activeTool === "boundingBox" && selectedDrawing?.type === "box") {
@@ -522,7 +539,7 @@ const Segmentation = ({
   ]);
 
   // ----------------------------------------------------------------------
-  // 7. Memoized drawAll (With Edit Handles)
+  // 8. Memoized drawAll (With Edit Handles)
   // ----------------------------------------------------------------------
   const drawAll = useCallback(() => {
     const overlay = overlayCanvasRef.current;
@@ -679,7 +696,17 @@ const Segmentation = ({
         ctx.fillText(text, boxX + padding, boxY + padding + 12);
       }
     }
-  }, [segments, tempBox, currentStroke, activeTool, activeSegmentId, radius, hoveredDrawing, draggingRef, selectedDrawing]);
+  }, [
+    segments,
+    tempBox,
+    currentStroke,
+    activeTool,
+    activeSegmentId,
+    radius,
+    hoveredDrawing,
+    draggingRef,
+    selectedDrawing,
+  ]);
 
   useEffect(() => {
     if (isSegmentationActive) {
@@ -688,7 +715,7 @@ const Segmentation = ({
   }, [isSegmentationActive, drawAll]);
 
   // ----------------------------------------------------------------------
-  // 8. Delete Selected Drawing
+  // 9. Delete Selected Drawing
   // ----------------------------------------------------------------------
   const deleteSelectedDrawing = () => {
     if (!selectedDrawing) return;
@@ -704,7 +731,7 @@ const Segmentation = ({
   };
 
   // ----------------------------------------------------------------------
-  // 9. Segment Actions (Unchanged)
+  // 10. Segment Actions
   // ----------------------------------------------------------------------
   const toggleSegmentVisibility = (segmentId) => {
     setSegments((prev) =>
@@ -724,9 +751,13 @@ const Segmentation = ({
 
   const clearActiveSegment = () => {
     if (!activeSegmentId) return;
-    setSegments((prev) =>
-      prev.map((s) => (s.id >= activeSegmentId ? { ...s, drawings: [] } : s))
+    setSegments(prev =>
+      prev.map(s =>
+        s.id === activeSegmentId ? { ...s, drawings: [] } : s
+      )
     );
+    setSelectedDrawing(null);
+    selectedDrawingRef.current = null;
   };
 
   const addNewSegment = () => {
@@ -785,12 +816,14 @@ const Segmentation = ({
     if (window.confirm("Delete **all** segments? This cannot be undone.")) {
       setSegments([]);
       setActiveSegmentId(null);
+      setSelectedDrawing(null);
+      selectedDrawingRef.current = null;
       localStorage.removeItem(`segmentation_data_${imageIndex}`);
     }
   };
 
   // ----------------------------------------------------------------------
-  // 10. Render (With Delete Selected Button)
+  // 11. Render
   // ----------------------------------------------------------------------
   return (
     <Box
@@ -811,7 +844,7 @@ const Segmentation = ({
         overflowY: "auto",
       }}
     >
-      {/* [ALL UI SAME AS BEFORE] */}
+      {/* Header */}
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
         <Typography variant="h6" sx={{ color: "#ff6b6b", fontWeight: "bold", fontSize: "14px" }}>
           SEGMENTATION
@@ -822,27 +855,84 @@ const Segmentation = ({
         </Box>
       </Box>
 
+      {/* Tool selection */}
       <Box sx={{ mb: 3 }}>
         <Box sx={{ display: "flex", gap: 1, mb: 2, backgroundColor: "#1a1a1a", borderRadius: "6px", padding: "4px" }}>
-          <Button size="small" variant={activeTool === "boundingBox" ? "contained" : "outlined"} onClick={() => setActiveTool("boundingBox")} sx={{ flex: 1, fontSize: "12px", backgroundColor: activeTool === "boundingBox" ? "#3f51b5" : "transparent", color: "#fff", border: "1px solid #555" }}>Bounding Box</Button>
-          <Button size="small" variant={activeTool === "smartPaint" ? "contained" : "outlined"} onClick={() => setActiveTool("smartPaint")} sx={{ flex: 1, fontSize: "12px", backgroundColor: activeTool === "smartPaint" ? "#3f51b5" : "transparent", color: "#fff", border: "1px solid #555" }}>Smart Paint</Button>
+          <Button
+            size="small"
+            variant={activeTool === "boundingBox" ? "contained" : "outlined"}
+            onClick={() => setActiveTool("boundingBox")}
+            sx={{
+              flex: 1,
+              fontSize: "12px",
+              backgroundColor: activeTool === "boundingBox" ? "#3f51b5" : "transparent",
+              color: "#fff",
+              border: "1px solid #555",
+            }}
+          >
+            Bounding Box
+          </Button>
+          <Button
+            size="small"
+            variant={activeTool === "smartPaint" ? "contained" : "outlined"}
+            onClick={() => setActiveTool("smartPaint")}
+            sx={{
+              flex: 1,
+              fontSize: "12px",
+              backgroundColor: activeTool === "smartPaint" ? "#3f51b5" : "transparent",
+              color: "#fff",
+              border: "1px solid #555",
+            }}
+          >
+            Smart Paint
+          </Button>
         </Box>
 
         {activeTool === "smartPaint" && (
           <Box sx={{ px: 1 }}>
-            <Typography gutterBottom sx={{ fontSize: "11px", color: "#ccc" }}>Radius: {radius.toFixed(1)}</Typography>
-            <Slider value={radius} onChange={(_, v) => setRadius(v)} min={1} max={30} step={0.1} size="small" sx={{ color: "#ff6b6b" }} />
+            <Typography gutterBottom sx={{ fontSize: "11px", color: "#ccc" }}>
+              Radius: {radius.toFixed(1)}
+            </Typography>
+            <Slider
+              value={radius}
+              onChange={(_, v) => setRadius(v)}
+              min={1}
+              max={30}
+              step={0.1}
+              size="small"
+              sx={{ color: "#ff6b6b" }}
+            />
           </Box>
         )}
       </Box>
 
+      {/* 2D / 3D mode */}
       <Box sx={{ mb: 3 }}>
-        <ButtonGroup size="small" sx={{ width: "100%", "& .MuiButton-root": { flex: 1, fontSize: "12px", color: "#fff", border: "1px solid #555" } }}>
-          <Button variant={activeMode === "2D" ? "contained" : "outlined"} onClick={() => setActiveMode("2D")} sx={{ backgroundColor: activeMode === "2D" ? "#ff6b6b" : "transparent" }}>2D</Button>
-          <Button variant={activeMode === "3D" ? "contained" : "outlined"} onClick={() => setActiveMode("3D")} sx={{ backgroundColor: activeMode === "3D" ? "#ff6b6b" : "transparent" }}>3D</Button>
+        <ButtonGroup
+          size="small"
+          sx={{
+            width: "100%",
+            "& .MuiButton-root": { flex: 1, fontSize: "12px", color: "#fff", border: "1px solid #555" },
+          }}
+        >
+          <Button
+            variant={activeMode === "2D" ? "contained" : "outlined"}
+            onClick={() => setActiveMode("2D")}
+            sx={{ backgroundColor: activeMode === "2D" ? "#ff6b6b" : "transparent" }}
+          >
+            2D
+          </Button>
+          <Button
+            variant={activeMode === "3D" ? "contained" : "outlined"}
+            onClick={() => setActiveMode("3D")}
+            sx={{ backgroundColor: activeMode === "3D" ? "#ff6b6b" : "transparent" }}
+          >
+            3D
+          </Button>
         </ButtonGroup>
       </Box>
 
+      {/* Selected drawing info + delete */}
       {selectedDrawing && (
         <Box sx={{ mb: 2, p: 1, backgroundColor: "#3a3a3a", borderRadius: 1, textAlign: "center" }}>
           <Typography sx={{ fontSize: "11px", color: "#aaa" }}>
@@ -854,16 +944,29 @@ const Segmentation = ({
         </Box>
       )}
 
+      {/* Segments list */}
       <Box sx={{ mb: 3 }}>
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-          <Typography sx={{ fontSize: "12px", color: "#ccc", fontWeight: "bold" }}>Segments ({segments.length})</Typography>
+          <Typography sx={{ fontSize: "12px", color: "#ccc", fontWeight: "bold" }}>
+            Segments ({segments.length})
+          </Typography>
           {segments.length > 0 && (
-            <Button size="small" onClick={clearAllSegments} sx={{ fontSize: "10px", color: "#ff6b6b", padding: "2px 8px" }}>Clear All</Button>
+            <Button size="small" onClick={clearAllSegments} sx={{ fontSize: "10px", color: "#ff6b6b", padding: "2px 8px" }}>
+              Clear All
+            </Button>
           )}
         </Box>
 
         {segments.length === 0 ? (
-          <Box sx={{ textAlign: "center", padding: "20px", backgroundColor: "#3c3c3c", borderRadius: "6px", border: "1px dashed #555" }}>
+          <Box
+            sx={{
+              textAlign: "center",
+              padding: "20px",
+              backgroundColor: "#3c3c3c",
+              borderRadius: "6px",
+              border: "1px dashed #555",
+            }}
+          >
             <Typography sx={{ fontSize: "12px", color: "#999", mb: 1 }}>No segments yet</Typography>
             <Typography sx={{ fontSize: "11px", color: "#666" }}>Click "+ Add Segment" to start</Typography>
           </Box>
@@ -887,26 +990,87 @@ const Segmentation = ({
             >
               {segment.id === editingSegmentId ? (
                 <Box sx={{ display: "flex", flex: 1, gap: 1, alignItems: "center" }}>
-                  <TextField size="small" value={editName} onChange={(e) => setEditName(e.target.value)} sx={{ flex: 1, input: { color: "#fff" } }} InputProps={{ style: { fontSize: "12px" } }} />
-                  <TextField size="small" placeholder="Comment" value={editComment} onChange={(e) => setEditComment(e.target.value)} sx={{ flex: 1, input: { color: "#fff" } }} InputProps={{ style: { fontSize: "12px" } }} />
-                  <IconButton size="small" onClick={handleSaveEdit} sx={{ color: "#4caf50" }}><Save fontSize="small" /></IconButton>
-                  <IconButton size="small" onClick={handleCancelEdit} sx={{ color: "#f44336" }}><Close fontSize="small" /></IconButton>
+                  <TextField
+                    size="small"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    sx={{ flex: 1, input: { color: "#fff" } }}
+                    InputProps={{ style: { fontSize: "12px" } }}
+                  />
+                  <TextField
+                    size="small"
+                    placeholder="Comment"
+                    value={editComment}
+                    onChange={(e) => setEditComment(e.target.value)}
+                    sx={{ flex: 1, input: { color: "#fff" } }}
+                    InputProps={{ style: { fontSize: "12px" } }}
+                  />
+                  <IconButton size="small" onClick={handleSaveEdit} sx={{ color: "#4caf50" }}>
+                    <Save fontSize="small" />
+                  </IconButton>
+                  <IconButton size="small" onClick={handleCancelEdit} sx={{ color: "#f44336" }}>
+                    <Close fontSize="small" />
+                  </IconButton>
                 </Box>
               ) : (
                 <>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
-                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); toggleSegmentVisibility(segment.id); }} sx={{ color: "#fff" }}>
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSegmentVisibility(segment.id);
+                      }}
+                      sx={{ color: "#fff" }}
+                    >
                       {segment.visible ? <Visibility /> : <VisibilityOff />}
                     </IconButton>
                     <Box sx={{ width: 12, height: 12, backgroundColor: segment.color, borderRadius: "2px" }} />
                     <Typography sx={{ fontSize: "12px", flex: 1 }}>{segment.name}</Typography>
-                    {segment.comment && <Tooltip title={segment.comment}><Info fontSize="small" sx={{ color: "#aaa" }} /></Tooltip>}
+                    {segment.comment && (
+                      <Tooltip title={segment.comment}>
+                        <Info fontSize="small" sx={{ color: "#aaa" }} />
+                      </Tooltip>
+                    )}
                   </Box>
 
                   <Box sx={{ display: "flex", gap: 0.5 }}>
-                    <Tooltip title="Edit"><IconButton size="small" onClick={(e) => { e.stopPropagation(); startEdit(segment); }} sx={{ color: "#fff" }}><Edit fontSize="small" /></IconButton></Tooltip>
-                    <Tooltip title="Duplicate"><IconButton size="small" onClick={(e) => { e.stopPropagation(); duplicateSegment(segment.id); }} sx={{ color: "#fff" }}><ContentCopy fontSize="small" /></IconButton></Tooltip>
-                    <Tooltip title="Delete"><IconButton size="small" onClick={(e) => { e.stopPropagation(); deleteSegment(segment.id); }} sx={{ color: "#ff6b6b" }}><Delete fontSize="small" /></IconButton></Tooltip>
+                    <Tooltip title="Edit">
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEdit(segment);
+                        }}
+                        sx={{ color: "#fff" }}
+                      >
+                        <Edit fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Duplicate">
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          duplicateSegment(segment.id);
+                        }}
+                        sx={{ color: "#fff" }}
+                      >
+                        <ContentCopy fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete">
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteSegment(segment.id);
+                        }}
+                        sx={{ color: "#ff6b6b" }}
+                      >
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                   </Box>
                 </>
               )}
@@ -915,10 +1079,33 @@ const Segmentation = ({
         )}
       </Box>
 
+      {/* Bottom action buttons */}
       <Box sx={{ display: "flex", gap: 1, mt: 2 }}>
-        <Button variant="contained" size="small" onClick={addNewSegment} sx={{ flex: 1, backgroundColor: "#ff6b6b", fontSize: "12px" }}>+ Add Segment</Button>
-        <Button variant="outlined" size="small" onClick={clearActiveSegment} disabled={!activeSegmentId} sx={{ flex: 1, borderColor: "#ff6b6b", color: "#ff6b6b", fontSize: "12px" }}>Clear Active</Button>
-        <Button variant="contained" size="small" onClick={handleApply} sx={{ flex: 1, backgroundColor: "#4caf50", fontSize: "12px" }}>Apply</Button>
+        <Button
+          variant="contained"
+          size="small"
+          onClick={addNewSegment}
+          sx={{ flex: 1, backgroundColor: "#ff6b6b", fontSize: "12px" }}
+        >
+          + Add Segment
+        </Button>
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={clearActiveSegment}
+          disabled={!activeSegmentId}
+          sx={{ flex: 1, borderColor: "#ff6b6b", color: "#ff6b6b", fontSize: "12px" }}
+        >
+          Clear Active
+        </Button>
+        <Button
+          variant="contained"
+          size="small"
+          onClick={handleApply}
+          sx={{ flex: 1, backgroundColor: "#4caf50", fontSize: "12px" }}
+        >
+          Apply
+        </Button>
       </Box>
     </Box>
   );

@@ -84,7 +84,7 @@ const RotateControls = ({ viewerRef }) => {
             "& .MuiListItemIcon-root": { color: "#000000ff" }, // White icon
             "& .MuiListItemText-primary": { color: "#000000ff" }, // White primary text
             "& .MuiListItemText-secondary": { color: "#000000ff" }, // Light gray secondary text
-            "&:hover": { backgroundColor: "#003087" }, // Navy blue on hover
+            "&:hover": { backgroundColor: "#f5f7fa" }, // Navy blue on hover
             borderBottom: "1px solid #333333", // Dark gray separator
             backgroundColor: "#ffffffff", // Ensure black background
           }}
@@ -98,7 +98,7 @@ const RotateControls = ({ viewerRef }) => {
             "& .MuiListItemIcon-root": { color: "#000000ff" },
             "& .MuiListItemText-primary": { color: "#000000ff" },
             "& .MuiListItemText-secondary": { color: "#000000ff" },
-            "&:hover": { backgroundColor: "#003087" },
+            "&:hover": { backgroundColor: "#f5f7fa" },
             borderBottom: "1px solid #333333",
             backgroundColor: "#ffffffff",
           }}
@@ -112,7 +112,7 @@ const RotateControls = ({ viewerRef }) => {
             "& .MuiListItemIcon-root": { color: "#000000ff" },
             "& .MuiListItemText-primary": { color: "#000000ff" },
             "& .MuiListItemText-secondary": { color: "#000000ff" },
-            "&:hover": { backgroundColor: "#003087" },
+            "&:hover": { backgroundColor: "#f5f7fa" },
             borderBottom: "1px solid #333333",
             backgroundColor: "#ffffffff",
           }}
@@ -126,7 +126,7 @@ const RotateControls = ({ viewerRef }) => {
             "& .MuiListItemIcon-root": { color: "#000000ff" },
             "& .MuiListItemText-primary": { color: "#000000ff" },
             "& .MuiListItemText-secondary": { color: "#000000ff" },
-            "&:hover": { backgroundColor: "#003087" },
+            "&:hover": { backgroundColor: "#f5f7fa" },
             borderBottom: "1px solid #333333",
             backgroundColor: "#ffffffff",
           }}
@@ -140,7 +140,7 @@ const RotateControls = ({ viewerRef }) => {
             "& .MuiListItemIcon-root": { color: "#000000ff" },
             "& .MuiListItemText-primary": { color: "#000000ff" },
             "& .MuiListItemText-secondary": { color: "#000000ff" },
-            "&:hover": { backgroundColor: "#003087" },
+            "&:hover": { backgroundColor: "#f5f7fa" },
             backgroundColor: "#ffffffff",
           }}
         >

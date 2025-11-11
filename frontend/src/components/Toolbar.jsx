@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Button,
   ButtonGroup,
@@ -16,13 +16,12 @@ import * as cornerstoneTools from "cornerstone-tools";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import PanControls from "./tools/PanControls";
-import ZoomControls from "./tools/ZoomControls"; // Fixed: was "Zoom | ZoomControls"
+import ZoomControls from "./tools/ZoomControls";
 import RotateMenu from "./tools/RotateControls";
 import WindowLevelControls from "./tools/WindowlevelControls";
 import Measurement from "./tools/Measurement";
 import Magnifier from "./tools/Magnifier";
 import CinePlayer from "./tools/CinePlayer";
-import PanelControls from "./tools/PanelControls";
 import LayoutControls from "./tools/LayoutControls";
 import Segmentation from "./tools/Segmentation";
 import SharedView from "./tools/SharedView";
@@ -38,7 +37,6 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import DownloadIcon from '@mui/icons-material/Download';
 import ShareIcon from '@mui/icons-material/Share';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import FormatListNumberedIcon from '@mui/icons-material/FormatListNumbered';
 import Brightness6Icon from '@mui/icons-material/Brightness6';
 
@@ -71,19 +69,18 @@ const Toolbar = ({
   const openMprMenu = Boolean(mprAnchorEl);
   const [isMagnifierActive, setIsMagnifierActive] = useState(false);
 
-  // --- Brightness/Contrast State (UI: 1–200 for brightness, 1–2000 for contrast) ---
+  // --- Brightness/Contrast State ---
   const [openBCDialog, setOpenBCDialog] = useState(false);
-  const [sliderBrightness, setSliderBrightness] = useState(100); // UI: 1–200
-  const [sliderContrast, setSliderContrast] = useState(400);     // UI: 1–2000
+  const [sliderBrightness, setSliderBrightness] = useState(100);
+  const [sliderContrast, setSliderContrast] = useState(400);
 
-  // Map UI slider (1–200) → real windowCenter (-500 to +500)
+  // Map UI slider (1–200) to real windowCenter (-500 to +500)
   const getWindowCenter = () => {
     const min = -500;
     const max = 500;
     return min + ((sliderBrightness - 1) / 199) * (max - min);
   };
 
-  // Map real windowCenter → UI slider value
   const getSliderBrightness = (center) => {
     const min = -500;
     const max = 500;
@@ -92,17 +89,42 @@ const Toolbar = ({
   };
 
   /* ------------------------------------------------------------------ */
-  /* HELPER: Get total viewer count from layout string */
+  /* HELPER: Get total viewer count */
   /* ------------------------------------------------------------------ */
-  const getViewerCount = (layoutStr) => {
+  const getViewerCount = useCallback((layoutStr) => {
     if (!layoutStr) return 1;
     const [rows, cols] = layoutStr.split('x').map(Number);
     return rows * cols;
-  };
+  }, []);
 
   /* ------------------------------------------------------------------ */
-  /* CENTRAL TOOL CHANGE + TRACKING */
+  /* CENTRAL TOOL ACTIVATION */
   /* ------------------------------------------------------------------ */
+  const activateTool = (toolName) => {
+    if (isPlaying || !isImageLoaded) return;
+
+    setIsMagnifierActive(false);
+    setShowMeasurement(false);
+    setShowSegmentation(false);
+    setOpenBCDialog(false);
+    setIsMeasuring(false);
+
+    if (activeTool === toolName) {
+      handleToolChangeWithTracking('Pan');
+      return;
+    }
+
+    handleToolChangeWithTracking(toolName);
+
+    if (toolName === 'Magnify') setIsMagnifierActive(true);
+    if (toolName === 'Measure') {
+      setShowMeasurement(true);
+      setIsMeasuring(true);
+    }
+    if (toolName === 'Segmentation') setShowSegmentation(true);
+    if (toolName === 'BrightnessContrast') handleOpenBCDialog();
+  };
+
   const handleToolChangeWithTracking = (toolName) => {
     handleToolChange(toolName);
     AnalyticsTracker.trackToolUsage(toolName);
@@ -127,7 +149,7 @@ const Toolbar = ({
   };
 
   /* ------------------------------------------------------------------ */
-  /* UPDATE VIEWPORT FOR ALL VIEWERS - BRIGHTNESS & CONTRAST */
+  /* UPDATE VIEWPORT FOR ALL VIEWERS (B/C) */
   /* ------------------------------------------------------------------ */
   useEffect(() => {
     if (!isImageLoaded) return;
@@ -141,35 +163,40 @@ const Toolbar = ({
       if (!element) continue;
 
       try {
-        const currentViewport = cornerstone.getViewport(element) || {};
-        currentViewport.voi = currentViewport.voi || {};
-        currentViewport.voi.windowCenter = windowCenter;
-        currentViewport.voi.windowWidth = windowWidth;
-
-        cornerstone.setViewport(element, currentViewport);
+        const vp = cornerstone.getViewport(element) || {};
+        vp.voi = vp.voi || {};
+        vp.voi.windowCenter = windowCenter;
+        vp.voi.windowWidth = windowWidth;
+        cornerstone.setViewport(element, vp);
         cornerstone.updateImage(element);
       } catch (err) {
         console.error(`Failed to update viewport for viewer ${i}:`, err);
       }
     }
-  }, [sliderBrightness, sliderContrast, isImageLoaded, layout, viewerRef, viewerRefs]);
+  }, [
+    sliderBrightness,
+    sliderContrast,
+    isImageLoaded,
+    layout,
+    viewerRef,
+    viewerRefs,
+    getViewerCount,
+  ]);
 
   /* ------------------------------------------------------------------ */
   /* RESET */
   /* ------------------------------------------------------------------ */
   const handleReset = () => {
-    if (!viewerRef?.current) return;
+    if (!viewerRef?.current || isPlaying) return;
     try {
       const viewerCount = getViewerCount(layout);
       for (let i = 0; i < viewerCount; i++) {
-        const element = i === 0 ? viewerRef.current : viewerRefs?.current?.[i]?.current;
-        if (element) {
-          cornerstone.reset(element);
-        }
+        const el = i === 0 ? viewerRef.current : viewerRefs?.current?.[i]?.current;
+        if (el) cornerstone.reset(el);
       }
-      // Reset to default: windowCenter = 0 → slider 100
       setSliderBrightness(100);
       setSliderContrast(400);
+      activateTool('Pan');
       AnalyticsTracker.trackToolUsage('Reset');
     } catch (err) {
       console.error("Reset failed:", err);
@@ -180,40 +207,29 @@ const Toolbar = ({
   /* OPEN BRIGHTNESS/CONTRAST DIALOG */
   /* ------------------------------------------------------------------ */
   const handleOpenBCDialog = () => {
-    setOpenBCDialog(true);
-    AnalyticsTracker.trackToolUsage('BrightnessContrast');
-
     const element = viewerRef?.current;
-    if (element && isImageLoaded) {
-      try {
-        const viewport = cornerstone.getViewport(element);
-        if (viewport?.voi) {
-          const center = viewport.voi.windowCenter ?? 0;
-          const width = viewport.voi.windowWidth ?? 400;
-          setSliderBrightness(getSliderBrightness(center));
-          setSliderContrast(Math.max(1, Math.min(2000, Math.round(width))));
-        }
-      } catch (err) {
-        console.warn("Failed to read initial viewport:", err);
+    if (!element || !isImageLoaded) return;
+
+    try {
+      const vp = cornerstone.getViewport(element);
+      if (vp?.voi) {
+        const center = vp.voi.windowCenter ?? 0;
+        const width = vp.voi.windowWidth ?? 400;
+        setSliderBrightness(getSliderBrightness(center));
+        setSliderContrast(Math.max(1, Math.min(2000, Math.round(width))));
       }
+    } catch (err) {
+      console.warn("Failed to read initial viewport:", err);
+      setSliderBrightness(100);
+      setSliderContrast(400);
     }
+
+    setOpenBCDialog(true);
   };
 
   const handleCloseBCDialog = () => {
     setOpenBCDialog(false);
-  };
-
-  /* ------------------------------------------------------------------ */
-  /* SEGMENTATION TOGGLE */
-  /* ------------------------------------------------------------------ */
-  const handleSegmentationToggle = () => {
-    const willBeActive = !showSegmentation;
-    setShowSegmentation(willBeActive);
-    if (willBeActive) {
-      handleToolChangeWithTracking('Segmentation');
-    } else {
-      handleToolChangeWithTracking('Pan');
-    }
+    if (activeTool === 'BrightnessContrast') activateTool('Pan');
   };
 
   /* ------------------------------------------------------------------ */
@@ -234,98 +250,82 @@ const Toolbar = ({
   };
 
   /* ------------------------------------------------------------------ */
-  /* EXPORT (PNG / JPG / DICOM) */
+  /* LAYOUT CHANGE HANDLER */
+  /* ------------------------------------------------------------------ */
+  const handleLayoutChange = (newLayout) => {
+    onLayoutChange(newLayout);
+    AnalyticsTracker.trackToolUsage(`Layout-${newLayout}`);
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* EXPORT - FIXED: Uses cornerstone image, not DOM canvas */
   /* ------------------------------------------------------------------ */
   const handleExportFormat = async (format) => {
     if (!files?.length) {
       alert("No files to export!");
       return;
     }
-    const element = viewerRef?.current;
-    if (!element) {
-      alert("No active viewer!");
-      return;
-    }
+
     const zip = new JSZip();
     const exportedFiles = [];
+
+    // Create a hidden canvas for rendering
+    const hiddenCanvas = document.createElement("canvas");
+    const ctx = hiddenCanvas.getContext("2d");
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (!file) continue;
+
       try {
         if (format === "dicom") {
           const buffer = await file.arrayBuffer();
-          const fileName = file.name || `dicom_${i}.dcm`;
+          const fileName = file.name || `image_${i}.dcm`;
           zip.file(fileName, buffer);
           exportedFiles.push(fileName);
         } else {
-          const startTime = Date.now();
+          // Load image via Cornerstone
           const imageId = `dicomweb:${URL.createObjectURL(file)}`;
           const image = await cornerstone.loadAndCacheImage(imageId);
-          cornerstone.displayImage(element, image);
-          trackImageLoadTime(startTime);
-          const canvas = element.querySelector("canvas");
-          if (!canvas) continue;
-          let fileData, fileName;
-          if (format === "png") {
-            fileData = canvas.toDataURL("-le/image/png").split(",")[1];
-            fileName = file.name.replace(/\.[^/.]+$/, "") + ".png";
-          } else {
-            fileData = canvas.toDataURL("image/jpeg").split(",")[1];
-            fileName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
-          }
-          zip.file(fileName, fileData, { base64: true });
+
+          // Set canvas size to image
+          hiddenCanvas.width = image.width;
+          hiddenCanvas.height = image.height;
+
+          // Render image to canvas
+          cornerstone.renderToCanvas(hiddenCanvas, image);
+
+          // Convert to blob
+          const blob = await new Promise(resolve => {
+            hiddenCanvas.toBlob(resolve, format === "png" ? "image/png" : "image/jpeg", 0.95);
+          });
+
+          const fileName = file.name.replace(/\.[^/.]+$/, "") + (format === "png" ? ".png" : ".jpg");
+          zip.file(fileName, blob);
           exportedFiles.push(fileName);
         }
       } catch (err) {
-        console.warn("Export error:", err);
+        console.warn(`Export failed for ${file.name}:`, err);
       }
     }
+
     setExportAnchorEl(null);
     AnalyticsTracker.trackToolUsage(`Export-${format.toUpperCase()}`);
+
     if (exportedFiles.length === 0) {
       alert("No files were exported!");
       return;
     }
+
     if (files.length === 1) {
       if (format === "dicom") {
         saveAs(new Blob([await files[0].arrayBuffer()]), files[0].name || "image.dcm");
       } else {
-        const canvas = element.querySelector("canvas");
-        const mime = format === "png" ? "image/png" : "image/jpeg";
-        canvas.toBlob(blob => saveAs(blob, exportedFiles[0]), mime);
+        hiddenCanvas.toBlob(blob => saveAs(blob, exportedFiles[0]), format === "png" ? "image/png" : "image/jpeg");
       }
     } else {
       const zipBlob = await zip.generateAsync({ type: "blob" });
-      saveAs(zipBlob, `exported_series_${new Date().toISOString()}.zip`);
-    }
-  };
-
-  /* ------------------------------------------------------------------ */
-  /* MEASUREMENT TOGGLE */
-  /* ------------------------------------------------------------------ */
-  const handleMeasurementToggle = () => {
-    const newState = !isMeasuring;
-    setIsMeasuring(newState);
-    setShowMeasurement(newState);
-    if (newState) {
-      handleToolChangeWithTracking('Measure');
-      AnalyticsTracker.trackToolUsage('Measurement');
-    } else {
-      handleToolChangeWithTracking('Pan');
-      const viewerCount = getViewerCount(layout);
-      for (let i = 0; i < viewerCount; i++) {
-        const element = i === 0 ? viewerRef.current : viewerRefs?.current?.[i]?.current;
-        if (element) {
-          try {
-            cornerstoneTools.clearToolState(element, "Length");
-            cornerstoneTools.clearToolState(element, "Angle");
-            cornerstoneTools.clearToolState(element, "RectangleRoi");
-            cornerstone.updateImage(element);
-          } catch (err) {
-            console.error("Failed to clear measurement:", err);
-          }
-        }
-      }
+      saveAs(zipBlob, `exported_series_${new Date().toISOString().split('T')[0]}.zip`);
     }
   };
 
@@ -333,24 +333,16 @@ const Toolbar = ({
   /* CINE PLAYER */
   /* ------------------------------------------------------------------ */
   const handleCineToggle = () => {
-    setIsPlaying(prev => !prev);
+    const newState = !isPlaying;
+    setIsPlaying(newState);
     AnalyticsTracker.trackToolUsage('Cine');
-  };
-
-  /* ------------------------------------------------------------------ */
-  /* LAYOUT CHANGE */
-  /* ------------------------------------------------------------------ */
-  const handleLayoutChange = (layout) => {
-    onLayoutChange(layout);
-    AnalyticsTracker.trackToolUsage(`Layout-${layout}`);
+    if (newState) activateTool('Pan');
   };
 
   return (
     <>
       <div className="toolbar-container">
-        {/* FIRST ROW */}
         <ButtonGroup variant="contained" className="toolbar-button-group">
-          {/* MPR MENU */}
           <Button
             onClick={(e) => setMprAnchorEl(e.currentTarget)}
             disabled={isPlaying || !isImageLoaded}
@@ -360,13 +352,14 @@ const Toolbar = ({
           >
             MPR
           </Button>
-          {/* WINDOW-LEVEL */}
+
           <WindowLevelControls
             viewerRef={viewerRef}
             disabled={isPlaying}
-            onActivate={() => AnalyticsTracker.trackToolUsage('Wwwc')}
+            onActivate={() => activateTool('Wwwc')}
+            isActive={activeTool === 'Wwwc'}
           />
-          {/* PAN */}
+
           <PanControls
             viewerRef={viewerRef}
             isElementEnabled={isElementEnabled}
@@ -375,8 +368,10 @@ const Toolbar = ({
             handleToolChange={handleToolChangeWithTracking}
             disabled={isPlaying}
             startIcon={<PanToolIcon />}
+            isActive={activeTool === 'Pan'}
+            onActivate={() => activateTool('Pan')}
           />
-          {/* ZOOM */}
+
           <ZoomControls
             viewerRef={viewerRef}
             isElementEnabled={isElementEnabled}
@@ -385,8 +380,10 @@ const Toolbar = ({
             handleToolChange={handleToolChangeWithTracking}
             disabled={isPlaying}
             startIcon={<ZoomInIcon />}
+            isActive={activeTool === 'Zoom'}
+            onActivate={() => activateTool('Zoom')}
           />
-          {/* ROTATE */}
+
           <RotateMenu
             viewerRef={viewerRef}
             isElementEnabled={isElementEnabled}
@@ -395,68 +392,88 @@ const Toolbar = ({
             handleToolChange={handleToolChangeWithTracking}
             disabled={isPlaying}
             startIcon={<RotateRightIcon />}
+            isActive={activeTool === 'Rotate'}
+            onActivate={() => activateTool('Rotate')}
           />
-          {/* MAGNIFIER */}
+
           <Magnifier viewerRef={viewerRef} isActive={isMagnifierActive} disabled={isPlaying} />
           <Button
             variant="contained"
-            onClick={() => {
-              setIsMagnifierActive(prev => !prev);
-              AnalyticsTracker.trackToolUsage('Magnify');
-            }}
-            disabled={isPlaying}
+            onClick={() => activateTool('Magnify')}
+            disabled={isPlaying || !isImageLoaded}
             className="magnifier-button"
             startIcon={<SearchIcon />}
-            style={{
-              background: isMagnifierActive ? '#4caf50' : '#1a237e',
-              color: 'white',
+            sx={{
+              backgroundColor: "#1a237e",
+              color: "white",
+              borderRadius: "8px",
+              textTransform: "none",
+              transition: "background-color 0.3s ease",
+              "&:hover": { backgroundColor: "#001f3f" },
             }}
           >
             Magnifier
           </Button>
-          {/* MEASUREMENT */}
+
           <Button
             variant="contained"
-            onClick={handleMeasurementToggle}
-            disabled={isPlaying}
+            onClick={() => activateTool('Measure')}
+            disabled={isPlaying || !isImageLoaded}
             className="measure-button"
             startIcon={<StraightenIcon />}
-            style={{
-              background: isMeasuring ? '#4caf50' : '#1a237e',
-              color: 'white',
+            sx={{
+              backgroundColor: "#1a237e",
+              color: "white",
+              borderRadius: "8px",
+              textTransform: "none",
+              transition: "background-color 0.3s ease",
+              "&:hover": { backgroundColor: "#001f3f" },
             }}
           >
             Measure
           </Button>
-          {/* SEGMENTATION */}
+
           <Button
             variant="contained"
-            onClick={handleSegmentationToggle}
-            disabled={isPlaying}
+            onClick={() => activateTool('Segmentation')}
+            disabled={isPlaying || !isImageLoaded}
             className="segmentation-button"
             startIcon={<BrushIcon />}
-            style={{
-              background: showSegmentation ? '#4caf50' : '#1a237e',
-              color: 'white',
+            sx={{
+              backgroundColor: "#1a237e",
+              color: "white",
+              borderRadius: "8px",
+              textTransform: "none",
+              transition: "background-color 0.3s ease",
+              "&:hover": { backgroundColor: "#001f3f" },
             }}
           >
             Segmentation
           </Button>
-          {/* BRIGHTNESS/CONTRAST */}
+
           <Button
             variant="contained"
-            onClick={handleOpenBCDialog}
+            onClick={() => activateTool('BrightnessContrast')}
             disabled={isPlaying || !isImageLoaded}
             className="bc-button"
             startIcon={<Brightness6Icon />}
-            style={{
-              background: openBCDialog ? '#4caf50' : '#1a237e',
-              color: 'white',
+            sx={{
+              backgroundColor: "#1a237e",
+              color: "white",
+              borderRadius: "8px",
+              textTransform: "none",
+              transition: "background-color 0.3s ease",
+              "&:hover": { backgroundColor: "#001f3f" },
             }}
           >
             B/C
           </Button>
-          {/* RESET */}
+
+          <LayoutControls
+            onLayoutChange={handleLayoutChange}
+            currentLayout={layout}
+          />
+
           <Button
             onClick={handleReset}
             disabled={isPlaying}
@@ -465,7 +482,7 @@ const Toolbar = ({
           >
             Reset
           </Button>
-          {/* EXPORT MENU */}
+
           <Button
             onClick={(e) => setExportAnchorEl(e.currentTarget)}
             disabled={isPlaying}
@@ -474,6 +491,7 @@ const Toolbar = ({
           >
             Export
           </Button>
+
           <CinePlayer
             viewerRef={viewerRef}
             files={files}
@@ -482,10 +500,6 @@ const Toolbar = ({
             startIcon={<PlayArrowIcon />}
           />
         </ButtonGroup>
-
-        {/* SECOND ROW */}
-        {/* <ButtonGroup variant="contained" className="toolbar-button-group toolbar-button-group-row2">
-        </ButtonGroup> */}
 
         {/* MPR MENU */}
         <Menu
@@ -514,9 +528,6 @@ const Toolbar = ({
             <span style={{ marginRight: 8 }}>MIST Oblique</span>
             <span style={{ marginLeft: 'auto', fontSize: '0.8em', color: '#666' }}>Shift + Q</span>
           </MenuItem>
-          <MenuItem onClick={() => handleMPRModeSelect(null)} disabled={isPlaying || !mprMode}>
-            <span style={{ marginRight: 8 }}>Close MPR</span>
-          </MenuItem>
         </Menu>
 
         {/* EXPORT MENU */}
@@ -526,24 +537,17 @@ const Toolbar = ({
           onClose={() => setExportAnchorEl(null)}
           className="export-menu"
         >
-          <MenuItem onClick={() => handleExportFormat("png")} disabled={isPlaying}>PNG</MenuItem>
-          <MenuItem onClick={() => handleExportFormat("jpg")} disabled={isPlaying}>JPG</MenuItem>
-          <MenuItem onClick={() => handleExportFormat("dicom")} disabled={isPlaying}>DICOM</MenuItem>
+          <MenuItem onClick={() => handleExportFormat("png")} disabled={isPlaying}>
+            PNG
+          </MenuItem>
+          <MenuItem onClick={() => handleExportFormat("jpg")} disabled={isPlaying}>
+            JPG
+          </MenuItem>
+          <MenuItem onClick={() => handleExportFormat("dicom")} disabled={isPlaying}>
+            DICOM
+          </MenuItem>
         </Menu>
       </div>
-
-      {/* MEASUREMENT PANEL */}
-      {showMeasurement && (
-        <div className="measurement-container">
-          <Measurement
-            viewerRef={viewerRef}
-            isElementEnabled={isElementEnabled}
-            isImageLoaded={isImageLoaded}
-            isMeasurementActive={isMeasuring}
-            disabled={isPlaying}
-          />
-        </div>
-      )}
 
       {/* SEGMENTATION PANEL */}
       {showSegmentation && (
@@ -553,85 +557,164 @@ const Toolbar = ({
           isImageLoaded={isImageLoaded}
           isSegmentationActive={activeTool === "Segmentation"}
           disabled={isPlaying}
-          onClose={() => setShowSegmentation(false)}
+          onClose={() => activateTool('Pan')}
         />
       )}
 
-      {/* BRIGHTNESS/CONTRAST DIALOG */}
-      <Dialog 
-        open={openBCDialog} 
-        onClose={handleCloseBCDialog} 
-        maxWidth="xs" 
-        fullWidth
-        className="bc-dialog"
-      >
-        <DialogTitle sx={{ position: 'relative' }}>
-          Brightness & Contrast
-          <Button 
-            onClick={() => {
-              setSliderBrightness(100);
-              setSliderContrast(400);
-            }} 
-            size="small" 
-            sx={{ 
-              position: 'absolute',
-              right: 8,
-              top: 8,
-              fontFamily: 'LemonMilk, sans-serif',
-              fontSize: '12px',
-              textTransform: 'none',
-              backgroundColor: 'rgba(255, 255, 255, 0.15)',
-              color: '#fff',
-              '&:hover': {
-                backgroundColor: 'rgba(255, 255, 255, 0.25)'
-              }
+      {/* BRIGHTNESS & CONTRAST DIALOG */}
+      {openBCDialog && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '80px',
+            left: '20px',
+            zIndex: 9999,
+            pointerEvents: 'auto',
+          }}
+        >
+          <Box
+            sx={{
+              width: '320px',
+              bgcolor: '#2d2d2d',
+              overflow: 'hidden',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
             }}
           >
-            Reset
-          </Button>
-        </DialogTitle>
-        <DialogContent>
-          <div className="brightness-contrast-container" style={{ padding: '16px' }}>
-            {/* Brightness */}
-            <Typography sx={{ color: "#020079", fontWeight: "bold", mb: 1 }}>
-              Brightness: {sliderBrightness}
-            </Typography>
-            <Slider
-              value={sliderBrightness}
-              min={1}
-              max={200}
-              step={1}
-              onChange={(e, val) => setSliderBrightness(val)}
-              disabled={isPlaying}
+            <Box
               sx={{
-                color: "#020079",
-                "& .MuiSlider-rail": { backgroundColor: "#f5f7fa" },
-                "& .MuiSlider-track": { backgroundColor: "#003366" },
-                "& .MuiSlider-thumb": { backgroundColor: "#020079" },
+                bgcolor: '#ff4949ff',
+                color: '#fff',
+                fontWeight: 'bold',
+                fontSize: '1rem',
+                textAlign: 'left',
+                py: 1.5,
+                px: 2,
+                position: 'relative',
+                fontFamily: 'LemonMilk, sans-serif',
+                borderBottom: '1px solid #444',
               }}
-            />
+            >
+              BRIGHTNESS & CONTRAST
+              <Button
+                onClick={() => {
+                  setSliderBrightness(100);
+                  setSliderContrast(400);
+                }}
+                size="small"
+                sx={{
+                  position: 'absolute',
+                  right: 8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  minWidth: '60px',
+                  fontFamily: 'LemonMilk, sans-serif',
+                  fontSize: '11px',
+                  textTransform: 'none',
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  color: '#fff',
+                  '&:hover': { backgroundColor: 'rgba(255,255,255,0.2)' },
+                }}
+              >
+                RESET
+              </Button>
+            </Box>
 
-            {/* Contrast */}
-            <Typography sx={{ color: "#020079", fontWeight: "bold", mb: 1, mt: 3 }}>
-              Contrast: {sliderContrast}
-            </Typography>
-            <Slider
-              value={sliderContrast}
-              min={1}
-              max={2000}
-              step={1}
-              onChange={(e, val) => setSliderContrast(val)}
-              disabled={isPlaying}
-              sx={{
-                color: "#020079",
-                "& .MuiSlider-rail": { backgroundColor: "#f5f7fa" },
-                "& .MuiSlider-track": { backgroundColor: "#003366" },
-                "& .MuiSlider-thumb": { backgroundColor: "#020079" },
-              }}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
+            <Box sx={{ bgcolor: '#2d2d2d', p: 3 }}>
+              <Typography
+                sx={{
+                  color: '#fff',
+                  fontWeight: 'bold',
+                  fontSize: '1rem',
+                  mb: 1,
+                  mt: 2,
+                  userSelect: 'none',
+                  fontFamily: 'LemonMilk, sans-serif',
+                }}
+              >
+                Brightness: {sliderBrightness}
+              </Typography>
+              <Slider
+                value={sliderBrightness}
+                min={1}
+                max={200}
+                step={1}
+                onChange={(e, val) => setSliderBrightness(val)}
+                disabled={isPlaying}
+                sx={{
+                  color: '#5b6ad0',
+                  height: 8,
+                  '& .MuiSlider-track': { backgroundColor: '#5b6ad0', border: 'none' },
+                  '& .MuiSlider-rail': { backgroundColor: '#444', opacity: 1 },
+                  '& .MuiSlider-thumb': {
+                    backgroundColor: '#5b6ad0',
+                    width: 16,
+                    height: 16,
+                    '&:hover, &.Mui-focusVisible': {
+                      boxShadow: '0 0 0 8px rgba(91, 106, 208, 0.16)',
+                    },
+                  },
+                }}
+              />
+
+              <Typography
+                sx={{
+                  color: '#fff',
+                  fontWeight: 'bold',
+                  fontSize: '1rem',
+                  mb: 1,
+                  mt: 3,
+                  userSelect: 'none',
+                  fontFamily: 'LemonMilk, sans-serif',
+                }}
+              >
+                Contrast: {sliderContrast}
+              </Typography>
+              <Slider
+                value={sliderContrast}
+                min={1}
+                max={2000}
+                step={1}
+                onChange={(e, val) => setSliderContrast(val)}
+                disabled={isPlaying}
+                sx={{
+                  color: '#5b6ad0',
+                  height: 8,
+                  '& .MuiSlider-track': { backgroundColor: '#5b6ad0', border: 'none' },
+                  '& .MuiSlider-rail': { backgroundColor: '#444', opacity: 1 },
+                  '& .MuiSlider-thumb': {
+                    backgroundColor: '#5b6ad0',
+                    width: 16,
+                    height: 16,
+                    '&:hover, &.Mui-focusVisible': {
+                      boxShadow: '0 0 0 8px rgba(91, 106, 208, 0.16)',
+                    },
+                  },
+                }}
+              />
+
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                <Button
+                  onClick={handleCloseBCDialog}
+                  variant="contained"
+                  sx={{
+                    bgcolor: '#4caf50',
+                    color: '#fff',
+                    fontFamily: 'LemonMilk, sans-serif',
+                    fontSize: '12px',
+                    textTransform: 'none',
+                    px: 4,
+                    py: 1,
+                    fontWeight: 'bold',
+                    '&:hover': { bgcolor: '#43a047' },
+                  }}
+                >
+                  APPLY
+                </Button>
+              </Box>
+            </Box>
+          </Box>
+        </div>
+      )}
     </>
   );
 };

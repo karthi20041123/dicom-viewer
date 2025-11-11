@@ -68,18 +68,19 @@ const PanControls = ({ viewerRef, isElementEnabled, isImageLoaded, activeTool, h
         sx={{
           backgroundColor: activeTool === "Pan" ? "#001f3f" : "#ffffff", // Navy blue when active, white otherwise
           color: activeTool === "Pan" ? "#ffffff" : "#001f3f", // White text when active, navy blue otherwise
-          border: "1px solid #001f3f", // Navy blue border
           fontFamily: "LemonMilk, sans-serif",
           textTransform: "none",
           borderRadius: "8px",
+          transition: "background-color 0.3s ease, color 0.3s ease",
           "&:hover": {
-            backgroundColor: activeTool === "Pan" ? "#003366" : "#f5f7fa", // Lighter navy or light gray-blue on hover
-            color: activeTool === "Pan" ? "#ffffff" : "#001f3f",
+            backgroundColor: activeTool === "Pan" ? "#003366" : "#001f3f", // Darker navy for active, navy for inactive
+            color: "#ffffff", // Always white text on hover for visibility
           },
         }}
       >
         Pan
       </Button>
+
       <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
@@ -98,8 +99,8 @@ const PanControls = ({ viewerRef, isElementEnabled, isImageLoaded, activeTool, h
             px: 2,
             py: 1,
             fontWeight: "bold",
-            backgroundColor: "#001f3f", // Light gray-blue for title background
-            color: "#ffffffff", // Navy blue text
+            backgroundColor: "#001f3f", // Navy blue background
+            color: "#ffffff", // White text
           }}
         >
           Pan Options
@@ -109,6 +110,7 @@ const PanControls = ({ viewerRef, isElementEnabled, isImageLoaded, activeTool, h
           onClick={() => handlePanAction("alignLeft")}
           sx={{
             color: "#001f3f", // Navy blue text
+            backgroundColor: "#ffffff",
             "&:hover": { backgroundColor: "#f5f7fa" }, // Light gray-blue on hover
           }}
         >
@@ -118,6 +120,7 @@ const PanControls = ({ viewerRef, isElementEnabled, isImageLoaded, activeTool, h
           onClick={() => handlePanAction("alignRight")}
           sx={{
             color: "#001f3f", // Navy blue text
+            backgroundColor: "#ffffff",
             "&:hover": { backgroundColor: "#f5f7fa" }, // Light gray-blue on hover
           }}
         >
@@ -127,16 +130,18 @@ const PanControls = ({ viewerRef, isElementEnabled, isImageLoaded, activeTool, h
           onClick={() => handlePanAction("alignCenter")}
           sx={{
             color: "#001f3f", // Navy blue text
+            backgroundColor: "#ffffff",
             "&:hover": { backgroundColor: "#f5f7fa" }, // Light gray-blue on hover
           }}
         >
           Align Center
         </MenuItem>
-        <Divider sx={{ backgroundColor: "#4a5e7a" }} /> {/* Lighter navy for divider */}
+        <Divider sx={{ backgroundColor: "#ffffff" }} /> {/* Lighter navy for divider */}
         <MenuItem
           onClick={() => handlePanAction("panUp")}
           sx={{
             color: "#001f3f", // Navy blue text
+            backgroundColor: "#ffffff",
             "&:hover": { backgroundColor: "#f5f7fa" }, // Light gray-blue on hover
           }}
         >
@@ -146,6 +151,7 @@ const PanControls = ({ viewerRef, isElementEnabled, isImageLoaded, activeTool, h
           onClick={() => handlePanAction("panDown")}
           sx={{
             color: "#001f3f", // Navy blue text
+            backgroundColor: "#ffffff",
             "&:hover": { backgroundColor: "#f5f7fa" }, // Light gray-blue on hover
           }}
         >

@@ -10,6 +10,7 @@ import {
   Info,
   Hash,
   Clock,
+  X,
 } from 'lucide-react';
 import * as cornerstone from 'cornerstone-core';
 import * as cornerstoneWADOImageLoader from 'cornerstone-wado-image-loader';
@@ -18,42 +19,51 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import './PACSInstancesView.css';
 
-const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onViewInstance, backendUrl }) => {
-  const [selectedInstances, setSelectedInstances] = useState([]);
+const PACSInstancesView = ({
+  selectedSeries,
+  selectedStudy,
+  onBackToDetails,
+  onViewInstance,
+  backendUrl,
+}) => {
+  /* --------------------------------------------------------------
+     State
+  -------------------------------------------------------------- */
+  const [selectedInstances, setSelectedInstances] = useState([]); // checked instances
   const [loading, setLoading] = useState(false);
   const [previewInstance, setPreviewInstance] = useState(null);
   const [instanceMetadata, setInstanceMetadata] = useState({});
   const [selectAll, setSelectAll] = useState(false);
+  const [showFormatDialog, setShowFormatDialog] = useState(false);
+  const [pendingDownloadInstances, setPendingDownloadInstances] = useState([]);
+  const [downloadFormat, setDownloadFormat] = useState('dcm');
 
-  // Load instance metadata when component mounts or series changes
+  /* --------------------------------------------------------------
+     Load metadata for every instance in the series
+  -------------------------------------------------------------- */
   useEffect(() => {
     if (selectedSeries?.instances) {
       loadInstancesMetadata();
     }
   }, [selectedSeries]);
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  };
-
   const loadInstancesMetadata = async () => {
     setLoading(true);
     const metadata = {};
-    const headers = getAuthHeaders();
 
     for (const instance of selectedSeries.instances) {
       try {
-        const url = `${backendUrl}${instance.filePath}`;
-        const response = await fetch(url, { headers });
-        if (!response.ok) throw new Error(`Failed to fetch DICOM file: ${response.status}`);
-        const arrayBuffer = await response.arrayBuffer();
+        if (!instance.file) {
+          console.warn(`No file for instance ${instance.sopInstanceUID}`);
+          continue;
+        }
+        const arrayBuffer = await instance.file.arrayBuffer();
         const byteArray = new Uint8Array(arrayBuffer);
         const dataSet = dicomParser.parseDicom(byteArray);
 
         metadata[instance.sopInstanceUID] = {
           fileSize: arrayBuffer.byteLength,
-          fileName: instance.filename || instance.filePath.split('/').pop(),
+          fileName: instance.filename || instance.file.name || 'Unknown',
           instanceNumber: dataSet.string('x00200013') || instance.instanceNumber || 'Unknown',
           sopInstanceUID: dataSet.string('x00080018') || instance.sopInstanceUID,
           acquisitionTime: dataSet.string('x00080032') || 'Unknown',
@@ -65,11 +75,11 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
       } catch (error) {
         console.error(`Error loading metadata for instance ${instance.sopInstanceUID}:`, error);
         metadata[instance.sopInstanceUID] = {
-          fileSize: 0,
-          fileName: instance.filename || instance.filePath.split('/').pop() || 'Unknown',
+          fileSize: instance.file?.size || 0,
+          fileName: instance.filename || instance.file?.name || 'Unknown',
           instanceNumber: instance.instanceNumber || 'Unknown',
           sopInstanceUID: instance.sopInstanceUID,
-          error: 'Failed to load metadata'
+          error: 'Failed to load metadata',
         };
       }
     }
@@ -78,14 +88,16 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
     setLoading(false);
   };
 
+  /* --------------------------------------------------------------
+     Selection handling
+  -------------------------------------------------------------- */
   const handleInstanceSelect = (instance) => {
-    setSelectedInstances(prev => {
-      const isSelected = prev.find(i => i.sopInstanceUID === instance.sopInstanceUID);
-      if (isSelected) {
-        return prev.filter(i => i.sopInstanceUID !== instance.sopInstanceUID);
-      } else {
-        return [...prev, instance];
+    setSelectedInstances((prev) => {
+      const already = prev.some((i) => i.sopInstanceUID === instance.sopInstanceUID);
+      if (already) {
+        return prev.filter((i) => i.sopInstanceUID !== instance.sopInstanceUID);
       }
+      return [...prev, instance];
     });
   };
 
@@ -98,7 +110,22 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
     setSelectAll(!selectAll);
   };
 
+  // Sync "Select All" checkbox
+  useEffect(() => {
+    const total = selectedSeries.instances?.length || 0;
+    const selected = selectedInstances.length;
+    setSelectAll(selected === total && total > 0);
+  }, [selectedInstances, selectedSeries.instances]);
+
+  /* --------------------------------------------------------------
+     Preview (thumbnail)
+  -------------------------------------------------------------- */
   const handleInstancePreview = async (instance) => {
+    if (!instance.file) {
+      alert('No file available for preview');
+      return;
+    }
+
     setLoading(true);
     const element = document.createElement('div');
     element.style.width = '512px';
@@ -111,67 +138,80 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
 
     try {
       cornerstone.enable(element);
-      
-      const imageId = `wadouri:${backendUrl}${instance.filePath}`;
+      const blobUrl = URL.createObjectURL(instance.file);
+      const imageId = `wadouri:${blobUrl}`;
       const image = await cornerstone.loadAndCacheImage(imageId);
-      
+
       if (image) {
         cornerstone.displayImage(element, image);
         const viewport = cornerstone.getDefaultViewportForImage(element, image);
         cornerstone.setViewport(element, viewport);
         cornerstone.updateImage(element);
-        
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
+
+        await new Promise((r) => setTimeout(r, 100));
+
         const canvas = element.querySelector('canvas');
         if (canvas && canvas.width > 0 && canvas.height > 0) {
           const thumbnailData = canvas.toDataURL('image/jpeg', 0.8);
-          
           if (thumbnailData && thumbnailData !== 'data:,') {
-            setPreviewInstance({
-              ...instance,
-              thumbnailData
-            });
+            setPreviewInstance({ ...instance, thumbnailData });
           } else {
-            console.warn('Generated empty thumbnail data');
-            alert('Could not generate preview - image may be corrupted or unsupported format');
+            alert('Could not generate preview – image may be corrupted');
           }
         } else {
-          console.warn('Canvas not found or has invalid dimensions');
-          alert('Could not generate preview - rendering failed');
+          alert('Could not generate preview – rendering failed');
         }
       } else {
-        console.warn('Failed to load DICOM image');
         alert('Could not load DICOM image for preview');
       }
-      
+
       cornerstone.disable(element);
-    } catch (error) {
-      console.error('Error generating preview:', error);
-      alert(`Preview error: ${error.message || 'Unknown error'}`);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Preview error:', err);
+      alert(`Preview error: ${err.message || 'Unknown error'}`);
     } finally {
-      if (document.body.contains(element)) {
-        document.body.removeChild(element);
-      }
+      if (document.body.contains(element)) document.body.removeChild(element);
       setLoading(false);
     }
   };
 
+  /* --------------------------------------------------------------
+     View (full-screen viewer)
+  -------------------------------------------------------------- */
   const handleViewInstance = (instance) => {
+    if (!instance.file) {
+      alert('No file available to view');
+      return;
+    }
     if (onViewInstance) {
-      onViewInstance([`wadouri:${backendUrl}${instance.filePath}`]);
+      const blobUrl = URL.createObjectURL(instance.file);
+      onViewInstance([`wadouri:${blobUrl}`]);
     }
   };
 
-  const handleDownloadInstances = async (instances = selectedInstances) => {
-    if (!instances.length) {
-      alert('No instances selected for download!');
+  /* --------------------------------------------------------------
+     Download helpers
+  -------------------------------------------------------------- */
+  const openDownloadDialog = (instances) => {
+    if (!instances?.length) {
+      alert('No instances to download!');
       return;
     }
+    setPendingDownloadInstances(instances);
+    setDownloadFormat('dcm');
+    setShowFormatDialog(true);
+  };
 
-    const format = prompt('Select format (jpg/png/dcm):', 'dcm').toLowerCase();
-    if (!['jpg', 'png', 'dcm'].includes(format)) {
-      alert('Invalid format! Please choose jpg, png, or dcm.');
+  const confirmDownload = async () => {
+    if (!pendingDownloadInstances.length) return;
+    setShowFormatDialog(false);
+    await handleDownloadInstances(pendingDownloadInstances, downloadFormat);
+  };
+
+  const handleDownloadInstances = async (instances = selectedInstances, format = 'dcm') => {
+    if (!instances.length) {
+      alert('No instances selected for download!');
       return;
     }
 
@@ -183,75 +223,75 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
     element.style.position = 'absolute';
     element.style.top = '-9999px';
     document.body.appendChild(element);
-    const headers = getAuthHeaders();
 
     try {
       cornerstone.enable(element);
 
       for (const instance of instances) {
-        try {
-          const url = `${backendUrl}${instance.filePath}`;
-          const imageId = `wadouri:${url}`;
-          
-          if (format === 'dcm') {
-            const response = await fetch(url, { headers });
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const buffer = await response.arrayBuffer();
-            const fileName = instance.filename || `instance_${instance.instanceNumber}.dcm`;
-            zip.file(fileName, buffer);
-          } else {
+        if (!instance.file) {
+          console.warn(`No file for instance ${instance.sopInstanceUID}`);
+          continue;
+        }
+
+        const blobUrl = URL.createObjectURL(instance.file);
+        const imageId = `wadouri:${blobUrl}`;
+
+        if (format === 'dcm') {
+          const fileName =
+            instance.filename || instance.file.name || `instance_${instance.instanceNumber || ''}.dcm`;
+          zip.file(fileName, instance.file);
+        } else {
+          try {
             const image = await cornerstone.loadAndCacheImage(imageId);
-            
             if (image) {
               cornerstone.displayImage(element, image);
+              await new Promise((r) => setTimeout(r, 50));
+
               const canvas = element.querySelector('canvas');
-              
               if (canvas) {
-                const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
-                const quality = format === 'jpg' ? 0.9 : undefined;
-                const fileData = canvas.toDataURL(mimeType, quality).split(',')[1];
-                const fileName = (instance.filename || 'instance').replace(/\.[^/.]+$/, '') + `_${instance.instanceNumber}.${format}`;
-                zip.file(fileName, fileData, { base64: true });
+                const blob = await new Promise((resolve) => {
+                  canvas.toBlob(
+                    resolve,
+                    format === 'png' ? 'image/png' : 'image/jpeg',
+                    0.9
+                  );
+                });
+                const baseName = (instance.filename || instance.file.name || 'instance').replace(/\.[^/.]+$/, '');
+                const fileName = `${baseName}_${instance.instanceNumber || ''}.${format}`;
+                if (blob) zip.file(fileName, blob);
               }
             } else {
-              // Fallback to original DICOM
-              const response = await fetch(url, { headers });
-              if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-              const buffer = await response.arrayBuffer();
-              const fileName = instance.filename || `instance_${instance.instanceNumber}.dcm`;
-              zip.file(fileName, buffer);
+              const fileName =
+                instance.filename || instance.file.name || `instance_${instance.instanceNumber || ''}.dcm`;
+              zip.file(fileName, instance.file);
             }
-          }
-        } catch (error) {
-          console.error(`Error processing instance ${instance.sopInstanceUID}:`, error);
-          try {
-            const url = `${backendUrl}${instance.filePath}`;
-            const response = await fetch(url, { headers });
-            if (response.ok) {
-              const buffer = await response.arrayBuffer();
-              const fileName = instance.filename || `instance_${instance.instanceNumber}.dcm`;
-              zip.file(fileName, buffer);
-            }
-          } catch (fallbackError) {
-            console.error(`Fallback error for ${instance.sopInstanceUID}:`, fallbackError);
+          } catch (e) {
+            console.error(`Render error for ${instance.sopInstanceUID}:`, e);
+            const fileName =
+              instance.filename || instance.file.name || `instance_${instance.instanceNumber || ''}.dcm`;
+            zip.file(fileName, instance.file);
           }
         }
+        URL.revokeObjectURL(blobUrl);
       }
 
       cornerstone.disable(element);
-    } catch (error) {
-      console.error('Error during download process:', error);
+    } catch (err) {
+      console.error('Download process error:', err);
+      alert('An error occurred during download. Check console for details.');
     } finally {
-      document.body.removeChild(element);
+      if (document.body.contains(element)) document.body.removeChild(element);
       setLoading(false);
     }
 
     if (Object.keys(zip.files).length > 0) {
       const zipBlob = await zip.generateAsync({ type: 'blob' });
-      saveAs(
-        zipBlob,
-        `instances_series_${selectedSeries.seriesNumber}_${new Date().toISOString().split('T')[0]}.zip`
-      );
+      const suffix =
+        instances.length === 1
+          ? `_${instances[0].instanceNumber || ''}`
+          : `_series_${selectedSeries.seriesNumber}`;
+      saveAs(zipBlob, `instances${suffix}_${new Date().toISOString().split('T')[0]}.zip`);
+      alert(`Successfully downloaded ${Object.keys(zip.files).length} file(s)!`);
     } else {
       alert('No files were processed for download.');
     }
@@ -262,9 +302,12 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
   };
 
+  /* --------------------------------------------------------------
+     Render
+  -------------------------------------------------------------- */
   if (!selectedSeries) {
     return (
       <div className="pacs-no-series-container">
@@ -276,24 +319,24 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
     );
   }
 
+  const instances = selectedSeries.instances || [];
+
   return (
     <div className="pacs-main-wrapper">
+      {/* Header */}
       <div className="pacs-header-bar">
         <div className="pacs-header-content">
-          <button 
-            onClick={onBackToDetails} 
-            className="pacs-header-back-btn"
-            disabled={loading}
-          >
+          <button onClick={onBackToDetails} className="pacs-header-back-btn" disabled={loading}>
             <ArrowLeft className="pacs-back-icon" />
             Back
           </button>
           <h1 className="pacs-header-title">PACS Server - Instance Viewer</h1>
-          <div></div> {/* Spacer for centering title if needed */}
+          <div />
         </div>
       </div>
 
       <div className="pacs-inner-container">
+        {/* Study / Series info */}
         <div className="pacs-study-details fade-in">
           <div className="pacs-search-header">
             <Image size={28} />
@@ -335,7 +378,9 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
               </div>
               <div className="pacs-info-item">
                 <span className="pacs-info-label">Instances:</span>
-                <span className="pacs-info-value">{selectedSeries.numberOfInstances}</span>
+                <span className="pacs-info-value">
+                  {selectedSeries.numberOfInstances || instances.length}
+                </span>
               </div>
             </div>
           </div>
@@ -350,55 +395,58 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
                   onChange={handleSelectAll}
                   className="pacs-select-checkbox"
                 />
-                Select All ({selectedSeries.instances.length})
+                Select All ({instances.length})
               </label>
               {selectedInstances.length > 0 && (
-                <span className="pacs-selected-count">
-                  {selectedInstances.length} selected
-                </span>
+                <span className="pacs-selected-count">{selectedInstances.length} selected</span>
               )}
             </div>
-            
+
             <div className="pacs-download-group">
               <button
-                onClick={() => handleDownloadInstances()}
+                onClick={() => openDownloadDialog(selectedInstances)}
                 disabled={loading || selectedInstances.length === 0}
                 className="pacs-download-selected-btn"
               >
                 <Download className="pacs-download-icon" />
-                Download Selected ({selectedInstances.length})
+                {loading ? 'Downloading...' : `Download Selected (${selectedInstances.length})`}
               </button>
             </div>
           </div>
         </div>
 
+        {/* Instances grid */}
         <div className="pacs-results-section scale-in">
           <div className="pacs-results-header">
             <h3>
               Instance Collection
-              <span className="pacs-results-count">{selectedSeries.instances.length}</span>
+              <span className="pacs-results-count">{instances.length}</span>
             </h3>
           </div>
 
           <div className="pacs-instances-grid">
-            {selectedSeries.instances.map((instance, index) => {
-              const metadata = instanceMetadata[instance.sopInstanceUID] || {};
-              const isSelected = selectedInstances.find(i => i.sopInstanceUID === instance.sopInstanceUID);
-              
+            {instances.map((instance, idx) => {
+              const meta = instanceMetadata[instance.sopInstanceUID] || {};
+              const isSelected = selectedInstances.some(
+                (i) => i.sopInstanceUID === instance.sopInstanceUID
+              );
+
               return (
-                <div 
-                  key={instance.sopInstanceUID} 
+                <div
+                  key={instance.sopInstanceUID}
                   className={`pacs-instance-card ${isSelected ? 'pacs-selected-card' : ''}`}
+                  onClick={() => handleInstanceSelect(instance)}
                 >
                   <div className="pacs-instance-header">
                     <h4 className="pacs-instance-number">
-                      Instance {metadata.instanceNumber || index + 1}
+                      Instance {meta.instanceNumber || idx + 1}
                     </h4>
                     <input
                       type="checkbox"
-                      checked={!!isSelected}
+                      checked={isSelected}
                       onChange={() => handleInstanceSelect(instance)}
                       className="pacs-instance-checkbox"
+                      onClick={(e) => e.stopPropagation()}
                     />
                   </div>
 
@@ -409,23 +457,26 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
                     </div>
                     <div className="pacs-metadata-row">
                       <FileText className="pacs-metadata-icon" />
-                      <strong>File:</strong> {metadata.fileName}
+                      <strong>File:</strong> {meta.fileName}
                     </div>
                     <div className="pacs-metadata-row">
                       <Info className="pacs-metadata-icon" />
-                      <strong>Size:</strong> {formatFileSize(metadata.fileSize)}
+                      <strong>Size:</strong> {formatFileSize(meta.fileSize)}
                     </div>
-                    {metadata.acquisitionTime && metadata.acquisitionTime !== 'Unknown' && (
+                    {meta.acquisitionTime && meta.acquisitionTime !== 'Unknown' && (
                       <div className="pacs-metadata-row">
                         <Clock className="pacs-metadata-icon" />
-                        <strong>Acquisition:</strong> {metadata.acquisitionTime}
+                        <strong>Acquisition:</strong> {meta.acquisitionTime}
                       </div>
                     )}
                   </div>
 
                   <div className="pacs-instance-actions">
-                    <button 
-                      onClick={() => handleViewInstance(instance)} 
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewInstance(instance);
+                      }}
                       className="pacs-instance-view-btn"
                       disabled={loading}
                     >
@@ -433,7 +484,10 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
                       View
                     </button>
                     <button
-                      onClick={() => handleInstancePreview(instance)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleInstancePreview(instance);
+                      }}
                       className="pacs-instance-preview-btn"
                       disabled={loading}
                     >
@@ -441,7 +495,10 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
                       Preview
                     </button>
                     <button
-                      onClick={() => handleDownloadInstances([instance])}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openDownloadDialog([instance]);
+                      }}
                       className="pacs-instance-download-btn"
                       disabled={loading}
                     >
@@ -449,34 +506,85 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
                       Download
                     </button>
                   </div>
-
-                  {/* {metadata.error && (
-                    <div className="pacs-error-message">
-                      {metadata.error}
-                    </div>
-                  )} */}
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Preview Modal */}
+        {/* Format dialog */}
+        {showFormatDialog && (
+          <div className="pacs-format-dialog-overlay">
+            <div className="pacs-format-dialog">
+              <div className="pacs-format-header">
+                <h3>Select Download Format</h3>
+                <button onClick={() => setShowFormatDialog(false)} className="pacs-close-btn">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="pacs-format-options">
+                <label className="pacs-format-option">
+                  <input
+                    type="radio"
+                    name="format"
+                    value="dcm"
+                    checked={downloadFormat === 'dcm'}
+                    onChange={(e) => setDownloadFormat(e.target.value)}
+                  />
+                  <span>.dcm (Original DICOM)</span>
+                </label>
+                <label className="pacs-format-option">
+                  <input
+                    type="radio"
+                    name="format"
+                    value="png"
+                    checked={downloadFormat === 'png'}
+                    onChange={(e) => setDownloadFormat(e.target.value)}
+                  />
+                  <span>.png (Lossless Image)</span>
+                </label>
+                <label className="pacs-format-option">
+                  <input
+                    type="radio"
+                    name="format"
+                    value="jpg"
+                    checked={downloadFormat === 'jpg'}
+                    onChange={(e) => setDownloadFormat(e.target.value)}
+                  />
+                  <span>.jpg (Compressed Image)</span>
+                </label>
+              </div>
+
+              <div className="pacs-format-actions">
+                <button onClick={() => setShowFormatDialog(false)} className="pacs-cancel-btn">
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDownload}
+                  className="pacs-confirm-btn"
+                  disabled={loading}
+                >
+                  {loading ? 'Downloading...' : `Download ${pendingDownloadInstances.length} file(s)`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Preview modal */}
         {previewInstance && (
           <div className="pacs-preview-modal">
             <div className="pacs-preview-content">
               <div className="pacs-preview-header">
                 <h3>Instance Preview</h3>
-                <button 
-                  onClick={() => setPreviewInstance(null)}
-                  className="pacs-close-btn"
-                >
+                <button onClick={() => setPreviewInstance(null)} className="pacs-close-btn">
                   Close
                 </button>
               </div>
               {previewInstance.thumbnailData && (
-                <img 
-                  src={previewInstance.thumbnailData} 
+                <img
+                  src={previewInstance.thumbnailData}
                   alt="Instance Preview"
                   className="pacs-preview-image"
                 />
@@ -485,10 +593,11 @@ const PACSInstancesView = ({ selectedSeries, selectedStudy, onBackToDetails, onV
           </div>
         )}
 
+        {/* Global loading overlay */}
         {loading && (
           <div className="pacs-loading-overlay">
             <div className="pacs-loading-spinner">
-              <div className="pacs-spinner"></div>
+              <div className="pacs-spinner" />
               <p>Processing...</p>
             </div>
           </div>

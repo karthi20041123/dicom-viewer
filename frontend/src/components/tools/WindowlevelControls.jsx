@@ -90,6 +90,7 @@ const WindowLevelControls = ({ viewerRef }) => {
             }}
             sx={{
               color: "#001f3f", // Navy blue text
+              backgroundColor: "#ffffff",
               "&:hover": {
                 backgroundColor: "#f5f7fa", // Light gray-blue on hover
               },
@@ -106,6 +107,7 @@ const WindowLevelControls = ({ viewerRef }) => {
           }}
           sx={{
             color: "#001f3f", // Navy blue text
+            backgroundColor: "#ffffff",
             "&:hover": {
               backgroundColor: "#f5f7fa", // Light gray-blue on hover
             },

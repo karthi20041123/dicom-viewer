@@ -151,7 +151,7 @@ const ZoomControls = ({ viewerRef, isElementEnabled, isImageLoaded, activeTool, 
         >
           Zoom Selection&nbsp;&nbsp;&nbsp;<small style={{ color: "#003366" }}>Ctrl + 9</small>
         </MenuItem>
-        <Divider sx={{ backgroundColor: "#001f3f" }} /> {/* Navy blue divider */}
+        <Divider sx={{ backgroundColor: "#ffffff" }} /> {/* Navy blue divider */}
         <MenuItem 
           disableRipple 
           sx={{ 

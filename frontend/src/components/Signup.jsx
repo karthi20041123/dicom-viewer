@@ -119,7 +119,7 @@ const SignupForm = ({ onClose, onLoginClick, onSignup }) => {
       console.log("Signup Response:", data);
 
       if (response.ok && data.success) {
-        setMessage({ type: 'success', text: 'Account created successfully! Redirecting to login...' });
+        setMessage({ type: 'success', text: 'Account created successfully! Opening login...' });
 
         if (data.token) {
           localStorage.setItem('authToken', data.token);
@@ -144,16 +144,20 @@ const SignupForm = ({ onClose, onLoginClick, onSignup }) => {
           twoFactorEnabled: false,
         });
 
-        // Trigger onSignup and redirect
+        // Trigger onSignup callback
+        if (typeof onSignup === "function") {
+          onSignup(data.user);
+        }
+
+        // Close signup and open login form after short delay
         setTimeout(() => {
-          if (typeof onSignup === "function") {
-            onSignup(data.user);
-          }
           if (typeof onClose === "function") {
             onClose();
           }
-          navigate("/login"); // Redirect to login page
-        }, 1000);
+          if (typeof onLoginClick === "function") {
+            onLoginClick(); // This opens the Login form
+          }
+        }, 1200); // Slightly longer for better UX
       } else {
         let errorMessage = data.message || 'Registration failed. Please try again.';
         if (response.status === 400) errorMessage = 'Invalid input. Please check your details.';

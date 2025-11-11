@@ -91,13 +91,14 @@ const LayoutControls = ({ onLayoutChange, currentLayout = "1x1" }) => {
             borderRadius: "8px",
             "& .MuiMenuItem-root": {
               color: "#001f3f", // Navy blue text
+              backgroundColor: "#ffffff", // White background
               "&:hover": {
                 backgroundColor: "#f5f7fa", // Light gray-blue on hover
               },
               "&.Mui-selected": {
-                backgroundColor: "#003366", // Lighter navy blue for selected
+                backgroundColor: "#ffffffff", // Lighter navy blue for selected
                 "&:hover": {
-                  backgroundColor: "#001f3f", // Navy blue on hover when selected
+                  backgroundColor: "#f5f7fa", // Navy blue on hover when selected
                 },
               },
             },

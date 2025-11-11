@@ -16,7 +16,7 @@ import PACSInstancesView from './PACSInstancesView';
 import './PACSStudyDetails.css';
 
 const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries }) => {
-  const [study, setStudy] = useState(null); // Initialize as null
+  const [study, setStudy] = useState(null);
   const [selectedSeries, setSelectedSeries] = useState(null);
   const [viewingSeries, setViewingSeries] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -33,7 +33,6 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries }) => {
   }, []);
 
   useEffect(() => {
-    // Directly use selectedStudy prop instead of fetching from backend
     if (!selectedStudy || !selectedStudy.id) {
       console.warn('No valid study selected');
       setStudy(null);
@@ -82,16 +81,19 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries }) => {
       alert('No study or series selected to export!');
       return;
     }
+    
     let instancesToExport = [];
     if (targetSeries) {
       instancesToExport = targetSeries.instances || [];
     } else if (study) {
       instancesToExport = study.series.flatMap((series) => series.instances || []);
     }
+    
     if (!instancesToExport.length) {
       alert('No images to export!');
       return;
     }
+    
     let selectedFormat = format;
     if (!selectedFormat || selectedFormat === 'zip') {
       selectedFormat = prompt('Select format (jpg/png/dcm):', 'jpg');
@@ -101,22 +103,32 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries }) => {
       }
       selectedFormat = selectedFormat.toLowerCase();
     }
+    
     setLoading(true);
     const zip = new JSZip();
+    
+    // Create a temporary div for rendering
     const element = document.createElement('div');
     element.style.width = '512px';
     element.style.height = '512px';
+    element.style.position = 'absolute';
+    element.style.left = '-9999px';
+    element.style.top = '-9999px';
     document.body.appendChild(element);
+
     try {
       cornerstone.enable(element);
+      
       for (const instance of instancesToExport) {
         try {
           if (!instance.file) {
             console.warn(`No file object for instance ${instance.sopInstanceUID}`);
             continue;
           }
+          
           const blobUrl = URL.createObjectURL(instance.file);
           const imageId = `wadouri:${blobUrl}`;
+          
           if (selectedFormat === 'dcm') {
             const fileName = instance.filename || `image_${instance.instanceNumber}.dcm`;
             zip.file(fileName, instance.file);
@@ -124,19 +136,22 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries }) => {
             const image = await cornerstone.loadAndCacheImage(imageId);
             if (image) {
               cornerstone.displayImage(element, image);
-              await new Promise((resolve) => setTimeout(resolve, 50));
+              await new Promise((resolve) => setTimeout(resolve, 100));
+              
               const canvas = element.querySelector('canvas');
               if (canvas) {
-                let fileData, fileName;
-                if (selectedFormat === 'png') {
-                  fileData = canvas.toDataURL('image/png').split(',')[1];
-                  fileName = `${instance.filename || 'image'}_${instance.instanceNumber}.png`;
-                } else if (selectedFormat === 'jpg') {
-                  fileData = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
-                  fileName = `${instance.filename || 'image'}_${instance.instanceNumber}.jpg`;
-                }
-                if (fileData) {
-                  zip.file(fileName, fileData, { base64: true });
+                // Convert canvas to blob
+                const blob = await new Promise((resolve) => {
+                  canvas.toBlob(
+                    resolve,
+                    selectedFormat === 'png' ? 'image/png' : 'image/jpeg',
+                    0.9
+                  );
+                });
+
+                const fileName = `${instance.filename || 'image'}_${instance.instanceNumber}.${selectedFormat}`;
+                if (blob) {
+                  zip.file(fileName, blob);
                 }
               }
             }
@@ -144,12 +159,14 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries }) => {
           }
         } catch (err) {
           console.error(`Export error for instance ${instance.sopInstanceUID}:`, err);
-          if (selectedFormat === 'dcm') {
+          // Fallback: save as DICOM
+          if (selectedFormat === 'dcm' && instance.file) {
             const fileName = instance.filename || `image_${instance.instanceNumber}.dcm`;
             zip.file(fileName, instance.file);
           }
         }
       }
+      
       cornerstone.disable(element);
     } catch (err) {
       console.error('Error during export process:', err);
@@ -158,10 +175,12 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries }) => {
       document.body.removeChild(element);
       setLoading(false);
     }
+    
     if (Object.keys(zip.files).length > 0) {
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       const fileName = `study_${study?.patientName || 'unknown'}_${new Date().toISOString().split('T')[0]}.zip`;
       saveAs(zipBlob, fileName);
+      alert(`Successfully exported ${Object.keys(zip.files).length} file(s)!`);
     } else {
       alert('No files were exported. Check console for errors.');
     }
@@ -285,7 +304,7 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries }) => {
                 className="pacssd-export-study-btn"
               >
                 <Download className="pacssd-mr-2 pacssd-w-4 pacssd-h-4" />
-                Export Entire Study
+                {loading ? 'Exporting...' : 'Export Entire Study'}
               </button>
             </div>
           </div>
@@ -302,7 +321,7 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries }) => {
               <div className="pacssd-series-grid">
                 {study.series.map((series) => (
                   <div 
-                    key={series._id} // Changed from series.id to series._id to match PACSSearchResults structure
+                    key={series._id}
                     className={`pacssd-series-card ${selectedSeries?._id === series._id ? 'pacssd-selected' : ''}`}
                   >
                     <div className="pacssd-series-header">
@@ -336,7 +355,7 @@ const PACSStudyDetails = ({ selectedStudy, onBackToSearch, onViewSeries }) => {
                         disabled={loading}
                       >
                         <Download className="pacssd-w-4 pacssd-h-4" />
-                        Download
+                        {loading ? 'Exporting...' : 'Download'}
                       </button>
                     </div>
                   </div>

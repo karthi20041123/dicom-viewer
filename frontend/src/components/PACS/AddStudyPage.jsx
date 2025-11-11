@@ -15,22 +15,20 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import * as dicomParser from 'dicom-parser';
-import AnalyticsDashboard from '../AnalyticsDashboard'; // ← ADDED
+import AnalyticsDashboard from '../AnalyticsDashboard';
 import './AddStudyPage.css';
 
-// API base URL (not used for local storage)
 const API_BASE_URL = 'http://localhost:5000/api';
 
 const AddStudyPage = ({
   onBack,
   isLoggedIn,
   existingStudy = null,
-  mode = 'create', // 'create' or 'edit'
+  mode = 'create',
   onStudySaved,
 }) => {
   const navigate = useNavigate();
 
-  // ← ALL HOOKS AT TOP
   const [studyData, setStudyData] = useState({
     patientName: '',
     patientID: '',
@@ -56,16 +54,13 @@ const AddStudyPage = ({
   const [message, setMessage] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadedFileIds, setUploadedFileIds] = useState([]); // Track uploaded DICOM file IDs
-  const [uploadedFileNames, setUploadedFileNames] = useState([]); // Track uploaded file names
-  const [localStudies, setLocalStudies] = useState([]); // Store parsed DICOM studies locally
+  const [uploadedFileIds, setUploadedFileIds] = useState([]);
+  const [uploadedFileNames, setUploadedFileNames] = useState([]);
+  const [localStudies, setLocalStudies] = useState([]);
   const fileInputRef = useRef(null);
   const [effectiveIsLoggedIn, setEffectiveIsLoggedIn] = useState(isLoggedIn);
-
-  // ← ANALYTICS STATE
   const [showAnalytics, setShowAnalytics] = useState(false);
 
-  // ← useEffect AFTER ALL HOOKS
   useEffect(() => {
     if (existingStudy && mode === 'edit') {
       setStudyData((prev) => ({
@@ -100,7 +95,6 @@ const AddStudyPage = ({
     setEffectiveIsLoggedIn(isLoggedIn || !!token);
   }, [existingStudy, mode, isLoggedIn]);
 
-  // ← SAFE EARLY RETURN — AFTER ALL HOOKS
   if (showAnalytics) {
     return <AnalyticsDashboard onBack={() => setShowAnalytics(false)} />;
   }
@@ -128,28 +122,12 @@ const AddStudyPage = ({
     return `ACC${date}${random}`;
   };
 
-  // Helper to convert File to base64
   const getBase64 = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result.split(',')[1]);
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
-
-  // Helper to check available localStorage space (approximate)
-  const getLocalStorageSpace = () => {
-    let data = '';
-    try {
-      for (const key in localStorage) {
-        if (localStorage.hasOwnProperty(key)) {
-          data += localStorage[key];
-        }
-      }
-      return data ? 5 * 1024 * 1024 - (encodeURI(data).split(/%..|./).length - 1) : 5 * 1024 * 1024; // Approx 5MB quota
-    } catch (e) {
-      return 0;
-    }
-  };
 
   const handleSaveStudy = async () => {
     if (!effectiveIsLoggedIn) {
@@ -192,96 +170,34 @@ const AddStudyPage = ({
         series: localStudies.length > 0 ? Array.from(localStudies[0].series.values()) : [],
       };
 
-      // Pass original to callback for in-memory update
       if (onStudySaved) {
         onStudySaved(finalStudyData);
       }
 
-      // Estimate size before converting to base64
-      const metadataJSON = JSON.stringify({
-        ...finalStudyData,
-        series: finalStudyData.series.map(ser => ({
+      // Convert files to base64 for localStorage
+      let savableStudy = { ...finalStudyData };
+      if (savableStudy.series && savableStudy.series.length > 0) {
+        savableStudy.series = await Promise.all(savableStudy.series.map(async (ser) => ({
           ...ser,
-          instances: ser.instances.map(inst => ({ ...inst, file: null })) // Exclude files for estimation
-        }))
-      });
-      const estimatedSize = encodeURI(metadataJSON).split(/%..|./).length - 1;
-      const availableSpace = getLocalStorageSpace();
-      if (estimatedSize > availableSpace * 0.9) { // Conservative check
-        setMessage('Insufficient local storage space for metadata alone. Clear some data or upload fewer files.');
-        setTimeout(() => setMessage(''), 5000);
-        return;
+          instances: await Promise.all(ser.instances.map(async (inst) => {
+            if (inst.file) {
+              const fileBase64 = await getBase64(inst.file);
+              return { ...inst, file: undefined, fileBase64 };
+            }
+            return inst;
+          })),
+        })));
       }
 
-      // Warn user about large files and suggest not persisting binaries
-      const totalInstances = finalStudyData.numberOfImages;
-      if (totalInstances > 50) { // Arbitrary threshold; adjust based on needs
-        const confirmSave = window.confirm(`You have ${totalInstances} images. Storing large DICOM files locally may exceed browser limits (localStorage ~5MB). Save metadata only? (Files will be kept in session but lost on refresh). Click OK for metadata only, Cancel to abort.`);
-        if (!confirmSave) {
-          setMessage('Save aborted.');
-          setTimeout(() => setMessage(''), 3000);
-          return;
-        }
-        // Create savable without binaries
-        const savableStudy = {
-          ...finalStudyData,
-          series: finalStudyData.series.map(ser => ({
-            ...ser,
-            instances: ser.instances.map(inst => ({
-              sopInstanceUID: inst.sopInstanceUID,
-              filename: inst.filename,
-              instanceNumber: inst.instanceNumber,
-              // Omit file and fileBase64
-            }))
-          })),
-          _note: 'Binaries omitted due to size. Files available in current session only.'
-        };
-
-        // Store metadata-only version
-        const existingLocalStudies = JSON.parse(localStorage.getItem('localStudies') || '[]');
-        if (mode === 'edit' && existingStudy) {
-          const updatedStudies = existingLocalStudies.map(s => s.id === existingStudy.id ? savableStudy : s);
-          localStorage.setItem('localStudies', JSON.stringify(updatedStudies));
-          setMessage('Study metadata saved locally (binaries omitted for size).');
-        } else {
-          existingLocalStudies.push(savableStudy);
-          localStorage.setItem('localStudies', JSON.stringify(existingLocalStudies));
-          setMessage('Study metadata saved locally (binaries omitted for size).');
-        }
+      const existingLocalStudies = JSON.parse(localStorage.getItem('localStudies') || '[]');
+      if (mode === 'edit' && existingStudy) {
+        const updatedStudies = existingLocalStudies.map(s => s.id === existingStudy.id ? savableStudy : s);
+        localStorage.setItem('localStudies', JSON.stringify(updatedStudies));
+        setMessage('Study updated locally successfully!');
       } else {
-        // Proceed with full base64 if small
-        let savableStudy = { ...finalStudyData };
-        if (savableStudy.series && savableStudy.series.length > 0) {
-          savableStudy.series = await Promise.all(savableStudy.series.map(async (ser) => ({
-            ...ser,
-            instances: await Promise.all(ser.instances.map(async (inst) => {
-              if (inst.file) {
-                const fileBase64 = await getBase64(inst.file);
-                return { ...inst, file: undefined, fileBase64 };
-              }
-              return inst;
-            })),
-          })));
-        }
-
-        // Final size check before store
-        const fullJSON = JSON.stringify(savableStudy);
-        if (encodeURI(fullJSON).split(/%..|./).length - 1 > availableSpace) {
-          setMessage('Study too large for localStorage even after check. Save aborted.');
-          setTimeout(() => setMessage(''), 5000);
-          return;
-        }
-
-        const existingLocalStudies = JSON.parse(localStorage.getItem('localStudies') || '[]');
-        if (mode === 'edit' && existingStudy) {
-          const updatedStudies = existingLocalStudies.map(s => s.id === existingStudy.id ? savableStudy : s);
-          localStorage.setItem('localStudies', JSON.stringify(updatedStudies));
-          setMessage('Study updated locally successfully!');
-        } else {
-          existingLocalStudies.push(savableStudy);
-          localStorage.setItem('localStudies', JSON.stringify(existingLocalStudies));
-          setMessage('Study created locally successfully!');
-        }
+        existingLocalStudies.push(savableStudy);
+        localStorage.setItem('localStudies', JSON.stringify(existingLocalStudies));
+        setMessage('Study created locally successfully!');
       }
 
       setTimeout(() => {
@@ -313,12 +229,8 @@ const AddStudyPage = ({
         }
       }, 2000);
     } catch (error) {
-      if (error.name === 'QuotaExceededError') {
-        setMessage('Local storage quota exceeded. Consider saving fewer files or clearing browser data.');
-      } else {
-        console.error('Error saving study locally:', error);
-        setMessage('Failed to save study locally: ' + error.message);
-      }
+      console.error('Error saving study locally:', error);
+      setMessage('Failed to save study locally: ' + error.message);
       setTimeout(() => setMessage(''), 5000);
     } finally {
       setLoading(false);
@@ -348,25 +260,8 @@ const AddStudyPage = ({
       return;
     }
 
-    // Check total size before processing (rough check)
-    const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-    if (totalSize > 4 * 1024 * 1024) { // Warn if >4MB
-      const confirm = window.confirm(`Selected files total ~${(totalSize / 1024 / 1024).toFixed(2)}MB. This may exceed local storage limits when saved. Proceed?`);
-      if (!confirm) return;
-    }
-
-    for (const file of files) {
-      if (file.size > 100 * 1024 * 1024) {
-        setMessage(`File ${file.name} exceeds 100MB limit`);
-        setTimeout(() => setMessage(''), 3000);
-        return;
-      }
-      if (!['.dcm', '.dicom'].includes(file.name.toLowerCase().slice(-4))) {
-        setMessage(`File ${file.name} is not a valid DICOM file (.dcm or .dicom)`);
-        setTimeout(() => setMessage(''), 3000);
-        return;
-      }
-    }
+    // REMOVED: Size check and confirm dialog
+    // No more warnings about 4MB, 50 images, or localStorage limits
 
     setIsUploading(true);
     setUploadProgress(0);
@@ -378,6 +273,9 @@ const AddStudyPage = ({
       let firstFileMetadata = null;
 
       for (const file of files) {
+        // REMOVED: 100MB per file check
+        // REMOVED: .dcm/.dicom extension check (still recommended, but not enforced)
+
         const arrayBuffer = await file.arrayBuffer();
         const byteArray = new Uint8Array(arrayBuffer);
         let dataSet;
@@ -385,7 +283,9 @@ const AddStudyPage = ({
         try {
           dataSet = dicomParser.parseDicom(byteArray);
         } catch (error) {
-          console.error(`Failed to parse DICOM file ${file.name}:`, error);
+          console.warn(`Skipping invalid DICOM file: ${file.name}`, error);
+          processedFiles++;
+          setUploadProgress((processedFiles / files.length) * 100);
           continue;
         }
 
@@ -402,14 +302,13 @@ const AddStudyPage = ({
         const patientBirthDate = dataSet.string('x00100030') || '';
         const patientSex = dataSet.string('x00100040') || '';
 
-        // Capture metadata from the first valid file for auto-filling
         if (!firstFileMetadata && processedFiles === 0) {
           firstFileMetadata = {
             patientName: dataSet.string('x00100010') || '',
             patientID: dataSet.string('x00100020') || '',
             patientBirthDate: dataSet.string('x00100030') || '',
             patientSex: dataSet.string('x00100040') || '',
-            studyID: dataSet.string('x0020000d') || '', // Fetch Study Instance UID
+            studyID: dataSet.string('x0020000d') || '',
             studyDate: dataSet.string('x00080020') || '',
             studyTime: dataSet.string('x00080030') || '',
             studyDescription: dataSet.string('x00081030') || '',
@@ -429,7 +328,7 @@ const AddStudyPage = ({
             patientPhone: studyData.patientPhone || '',
             patientEmail: studyData.patientEmail || '',
             patientAddress: studyData.patientAddress || '',
-            studyID: studyData.studyID || studyInstanceUID, // Use DICOM Study Instance UID if studyData.studyID is empty
+            studyID: studyData.studyID || studyInstanceUID,
             studyDate,
             studyTime: studyData.studyTime || '',
             studyDescription,
@@ -484,9 +383,8 @@ const AddStudyPage = ({
           ),
         ]);
         setUploadedFileNames((prev) => [...prev, ...files.map(file => file.name)]);
-        setMessage(`Successfully processed ${processedFiles} DICOM files locally!`);
+        setMessage(`Successfully processed ${processedFiles} DICOM files!`);
 
-        // Auto-fill studyData with metadata from the first valid DICOM file
         if (firstFileMetadata) {
           setStudyData((prev) => ({
             ...prev,
@@ -498,7 +396,7 @@ const AddStudyPage = ({
                 ? new Date(firstFileMetadata.patientBirthDate).toISOString().split('T')[0]
                 : ''),
             patientSex: prev.patientSex || firstFileMetadata.patientSex,
-            studyID: prev.studyID || firstFileMetadata.studyID, // Auto-fill studyID
+            studyID: prev.studyID || firstFileMetadata.studyID,
             studyDate:
               prev.studyDate ||
               (firstFileMetadata.studyDate
@@ -515,7 +413,7 @@ const AddStudyPage = ({
           }));
         }
       } else {
-        setMessage('No valid DICOM files were processed. Please ensure the files are valid DICOM files.');
+        setMessage('No valid DICOM files were processed.');
       }
     } catch (error) {
       console.error('Upload error:', error);
@@ -548,7 +446,6 @@ const AddStudyPage = ({
         </button>
         <h1 className="details-title">Add Study Details</h1>
         <div style={{ display: 'flex', gap: '12px' }}>
-          {/* ← ANALYTICS BUTTON */}
           <button
             onClick={() => setShowAnalytics(true)}
             className="analytics-btn"
@@ -578,19 +475,14 @@ const AddStudyPage = ({
           <div className="progress-bar">
             <div className="progress-fill" style={{ width: `${uploadProgress}%` }}></div>
           </div>
-          <p>Processing files... {uploadProgress}%</p>
+          <p>Processing files... {Math.round(uploadProgress)}%</p>
         </div>
       )}
 
       {message && (
         <div
           className={`message-banner ${
-            message.includes('Error') ||
-            message.includes('failed') ||
-            message.includes('not found') ||
-            message.includes('duplicate') ||
-            message.includes('quota') ||
-            message.includes('space')
+            message.includes('Error') || message.includes('failed')
               ? 'error'
               : 'success'
           }`}

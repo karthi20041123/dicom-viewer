@@ -24,6 +24,18 @@ export default (sequelize) => {
       type: DataTypes.ENUM('M', 'F', 'O', ''),
       defaultValue: '',
     },
+    patientPhone: {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+    },
+    patientEmail: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    patientAddress: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
     patientBirthTime: {
       type: DataTypes.STRING(10),
       allowNull: true,
@@ -38,10 +50,6 @@ export default (sequelize) => {
     },
     patientSize: {
       type: DataTypes.DECIMAL(10, 2),
-      allowNull: true,
-    },
-    patientAddress: {
-      type: DataTypes.TEXT,
       allowNull: true,
     },
     patientComments: {
@@ -115,6 +123,7 @@ export default (sequelize) => {
       { fields: ['patientName'] },
       { fields: ['patientBirthDate'] },
       { fields: ['patientSex'] },
+      { fields: ['patientEmail'] },
       { fields: ['createdAt'] },
     ],
   });

@@ -1,4 +1,3 @@
-// models/Study.js
 import { DataTypes } from 'sequelize';
 
 export default (sequelize) => {
@@ -38,6 +37,30 @@ export default (sequelize) => {
       type: DataTypes.JSON,
       allowNull: true,
     },
+    accessionNumber: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    bodyPartExamined: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    referringPhysician: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    studyPriority: {
+      type: DataTypes.ENUM('routine', 'urgent', 'emergent', 'stat'),
+      defaultValue: 'routine',
+    },
+    studyStatus: {
+      type: DataTypes.ENUM('scheduled', 'in-progress', 'completed', 'cancelled'),
+      defaultValue: 'scheduled',
+    },
+    comments: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
     numberOfSeries: {
       type: DataTypes.INTEGER,
       defaultValue: 0,
@@ -59,6 +82,8 @@ export default (sequelize) => {
     indexes: [
       { fields: ['studyInstanceUID'] },
       { fields: ['studyDate'] },
+      { fields: ['accessionNumber'] },
+      { fields: ['studyStatus'] },
     ],
   });
 

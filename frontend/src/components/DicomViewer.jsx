@@ -66,7 +66,7 @@ initializeTools();
 
 function DicomViewer({ files }) {
   const viewerRef = useRef(null);
-  const viewerRefs = useRef([]);
+  const viewerRefs = useRef([]); // ALL viewers
   const [activeTool, setActiveTool] = useState("Pan");
   const [isImageLoaded, setIsImageLoaded] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -214,7 +214,7 @@ function DicomViewer({ files }) {
     };
   }, [layout]);
 
-  // Handle mouse wheel for image navigation (now cycles through files in all viewers)
+  // Handle mouse wheel for image navigation
   useEffect(() => {
     const element = viewerRef.current;
     if (!element || !files?.length) return;
@@ -227,7 +227,6 @@ function DicomViewer({ files }) {
       const totalImages = files.length;
       const viewerCount = getViewerCount(layout);
 
-      // Cycle through images in all viewers
       for (let i = 0; i < viewerCount; i++) {
         const viewerElement = i === 0 ? viewerRef.current : viewerRefs.current[i]?.current;
         if (!viewerElement) continue;
@@ -596,7 +595,6 @@ function DicomViewer({ files }) {
                 setDraggedIndex(index);
               }}
               onClick={() => {
-                // Optional: Click to load in primary viewer
                 const element = viewerRef.current;
                 if (element && files[index]) {
                   const imageId = `wadouri:${URL.createObjectURL(files[index])}`;
@@ -702,7 +700,7 @@ function DicomViewer({ files }) {
     );
   };
 
-  const containerHeight = 750;
+  const containerHeight = 770;
 
   return (
     <div className="dicom-viewer-container">
@@ -731,6 +729,7 @@ function DicomViewer({ files }) {
             activeTool={activeTool}
             handleToolChange={setActiveTool}
             viewerRef={viewerRef}
+            viewerRefs={viewerRefs} // ← PASS ALL VIEWERS
             files={files}
             isElementEnabled={!!viewerRef.current}
             isImageLoaded={isImageLoaded}
